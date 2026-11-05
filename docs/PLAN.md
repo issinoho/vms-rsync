@@ -156,6 +156,14 @@ None of them is a blocker on what is known now. Each gets a probe in Phase 0.
 - `rsync -a` of a stream-file tree VMS→VMS (local), checked by checksums.
 - **Exit:** a local tree copies exactly, a second run transfers nothing, and a changed
   file goes by delta.
+- **Status 2026-11-05:** done on both nodes (NOTES N5).
+  - openrsync builds with 7 patches and the overlay.
+  - `tools/local.sh` gives an exact copy, then 0 files on the second run, then a
+    delta of 700 bytes sent and 299,300 matched.
+  - Fixed on the way: times undone by close/chmod/chown, IA64's mmap, and a hang
+    from inherited fds.
+  - Not covered: openrsync's regress/cunit tests (they need a Unix shell or
+    upstream's harness); stderr under ssh commands; readpassphrase echo.
 
 **Phase 2: the network.**
 - rsync:// against a Linux rsync daemon. The user starts it: the classifier refuses

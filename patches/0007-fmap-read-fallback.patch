@@ -1,0 +1,56 @@
+Subject: fmap: read the file when mmap() fails on VMS
+
+On IA64 mmap() of a file fails with ENOMEM ("not enough core"), and the
+sender stops. Read the whole file into the fmap's (otherwise unused) buf
+instead, with pread(), and free it on close.
+
+--- a/fmap.c	2026-11-05 22:45:28.737645830 +0000
++++ b/fmap.c	2026-11-05 22:45:28.838030053 +0000
+@@ -38,8 +38,35 @@
+ 	fm->mapsz = sz;
+ 	fm->map = mmap(NULL, sz, PROT_READ, MAP_SHARED, fd, 0);
+ 	if (fm->map == MAP_FAILED) {
++#ifdef __VMS
++		/*
++		 * IA64's mmap() of a file fails ("not enough core"), so
++		 * read the file into memory instead.
++		 */
++		size_t	 got = 0;
++		ssize_t	 n;
++
++		fm->map = NULL;
++		if ((fm->buf = malloc(sz ? sz : 1)) == NULL) {
++			ERR("%s: malloc", path);
++			return false;
++		}
++		while (got < sz) {
++			n = pread(fd, fm->buf + got, sz - got, (off_t)got);
++			if (n <= 0) {
++				ERR("%s: read", path);
++				free(fm->buf);
++				fm->buf = NULL;
++				return false;
++			}
++			got += (size_t)n;
++		}
++		fm->map = fm->buf;
++		return true;
++#else
+ 		ERR("%s: mmap", path);
+ 		return false;
++#endif
+ 	}
+ 
+ 	return true;
+@@ -105,6 +132,11 @@
+ {
+ 	if (fm == NULL)
+ 		return;
++#ifdef __VMS
++	if (fm->buf != NULL)
++		free(fm->buf);
++	else
++#endif
+ 	(void)munmap(fm->map, fm->mapsz);
+ 	free(fm);
+ }

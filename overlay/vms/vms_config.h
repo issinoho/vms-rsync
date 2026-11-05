@@ -64,8 +64,12 @@ int mkfifoat(int, const char *, mode_t);
 int fchdir(int);
 
 /* open() goes through the shim, for O_DIRECTORY and directories (vms_at.c
-   calls the C RTL's own). The renamed prototype in <fcntl.h> matches ours. */
+   calls the C RTL's own). The renamed prototype in <fcntl.h> matches ours.
+   close() too: it sets times futimens() was given once the file is closed
+   (closing a written file sets its revision date), and forgets directory fds. */
+int vms_close(int);
 #define open vms_open
+#define close vms_close
 
 /* Only compats.c's bcrypt round tuning asks for a thread CPU clock, which rsync
    never calls. */

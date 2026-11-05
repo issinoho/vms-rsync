@@ -73,6 +73,15 @@ int vms_spawn(char *const *args, int sock, const char *self_name)
        otherwise the null device: the child's messages are lost (NOTES N1). */
     if (isatty(2) || (fstat(2, &st) == 0 && S_ISREG(st.st_mode))) errfd = 2;
     else errfd = open("NLA0:", O_WRONLY);
+    /* A vfork+exec child inherits every open fd, where upstream's fork child
+       closes the parent's end of the socketpair. Holding both ends, the child
+       never sees end-of-file when the parent stops, and both wait forever
+       (NOTES N5). So nothing but its own streams goes to the child. */
+    {
+        int fd;
+        for (fd = 3; fd < 256; fd++)
+            if (fd != sock && fd != errfd) (void) fcntl(fd, F_SETFD, FD_CLOEXEC);
+    }
     pid = vfork();
     if (pid == 0) {
         decc$set_child_standard_streams(sock, sock, errfd);

@@ -146,3 +146,76 @@ shows `link.txt;1 -> target.txt`. Opening the link opens the target.
 - **The `*at` calls point to a shim library, not per-call patches.** It needs
   directory fds, and VMS can't `open()` a directory (vms-mariadb's probes), so a
   directory "fd" will be a stand-in registered with its path.
+
+## N5. Phase 1: openrsync built, and local copies, 2026-11-05 (tools/build.sh, tools/local.sh)
+
+**Building.**
+- `config.h` is openrsync's own `configure`, run on Linux with answers measured on
+  the nodes:
+  - `tools/features.sh` compiles and links upstream's `tests.c` once per feature on
+    each node, as `configure` does. Both nodes agree: 7 of 53 present (crypt,
+    INFTIM, PATH_MAX, strndup, strnlen, termios, the socket library).
+  - Overrides with their reasons are in `overlay/vms/configure.overrides`.
+- **Not `/STANDARD=C99`:** it defines `_ANSI_C_SOURCE`, which hides `strnlen`,
+  `PATH_MAX` and other POSIX declarations, so a first measurement found 3 features.
+  The VSI C default mode accepts openrsync's C99 and declares them. Implicitly
+  declared functions are errors, as in the family's GNU ports.
+- **VSI C rejects:**
+  - GNU `##__VA_ARGS__` (patch 0003);
+  - indexing a `void *` (0005).
+- **VSI C warns about** (allowed, with the reason, in `BUILD.COM`):
+  - arithmetic on a `void *`, which it treats as `char *`, as GNU C does;
+  - `%zu` on IA64 (VSI C 7.4). IA64's C RTL prints `%zu`, `%zd` and `%5zu`
+    correctly (checked with a test program).
+- **Missing, so supplied in `overlay/vms`:**
+  - `<fts.h>`, `<getopt.h>` (a `getopt_long` with GNU argument reordering, checked
+    on Linux), `<search.h>` (`hsearch`), `<syslog.h>` and `<paths.h>`;
+  - `getentropy` (not for secrets: it seeds only temp names and a server's
+    checksum seed), `dirfd`, `major`/`minor`, `timersub`, `roundup`, `MAX`,
+    `MAXPATHLEN`, `IFTODT`, `__progname`;
+  - termios stubs. readpassphrase cannot turn echo off: Phase 2.
+- **The *at() shim** (`vms_at.c`): ~150 calls run over paths, with directory "fds"
+  that are null-device fds registered with an absolute path. `open` and `close` go
+  through it via macros in `vms_config.h`. `RSYNC_VMS_TRACE` traces every call.
+
+**Running.**
+- **stderr:** under `vms.sh` (an ssh command) stderr is a bare device, so rsync's
+  messages (and `--version`) vanish. The tests send stdout and stderr to files.
+- **Local copies start the server through `vms_spawn`**, unchanged from upstream's
+  protocol: it starts its own image as `rsync --server`.
+- **Times (`-t`) needed three fixes,** found with the trace:
+  1. Closing a written file sets its revision date. The shim tracks files opened
+     for writing (following renames) and sets their times again after `close`.
+  2. `chown` and `chmod` rewrite the file header and also set the revision date.
+     openrsync sets times first, then owner and mode, so the shim sets the last
+     times again after either.
+  3. Header changes need a CLEAN build: `BUILD.COM` recompiles only sources newer
+     than their objects, which left `close` unwrapped in `downloader.c` for one
+     run.
+- **The receiver's first open of a destination that does not exist yet** failed
+  as it should here. In one single-file run it created an empty `;1` before the
+  real `;2`. To check in Phase 3, with the version rules.
+
+**IA64 differs in two ways:**
+- **`mmap()` of a file fails** ("not enough core"). Patch 0007 reads the file into
+  memory instead (`pread`, the fmap's unused `buf`). Large files are bounded by
+  memory there; Phase 3's file view replaces this.
+- **That error hung both processes** (stopped by hand). A `vfork`+`exec` child
+  inherits every fd, including the parent's end of the socketpair, which upstream's
+  `fork` child closes. Holding both ends, the child never sees end-of-file when the
+  parent gives up.
+  - `probes/probe_cloexec.c`, on both nodes: without `FD_CLOEXEC` the child is
+    still waiting after 10 s; with it, the child sees EOF and exits.
+  - `vms_spawn` now marks every other fd close-on-exec before the `vfork`.
+  - After the fix, an unreadable source file (all access denied, privileges
+    dropped) gave a warning and rsync's partial-transfer status 23 on both nodes,
+    with no hang.
+
+**`tools/local.sh` (tests/vms/local.com), x86 and IA64, identical results.** A scratch tree of stream-LF text,
+a 300 KB binary, an empty file and two levels of subdirectory:
+- run 1 `rsync -a`: 5 files, each identical by MD5;
+- run 2: **0 files transferred** (quick check stable);
+- run 3 after 100 bytes changed in the binary, `--no-whole-file` (a local copy is
+  whole-file by default, as rsync's): 1 file, **700 bytes sent, 299,300 matched**,
+  all identical.
+- Each update is a new version (D4), as probe 4 predicted.

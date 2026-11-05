@@ -26,9 +26,11 @@ $! slips through. 32-bit pointers; X/Open stat (st_ino a scalar), large files,
 $! BSD 4.4 sockaddr; POSIX exit statuses so rsync's exit codes reach the caller.
 $! Any warning fails a compile, except BADPTRARITH: arithmetic on a void *, which
 $! openrsync does in io.c, receiver.c and sender.c and VSI C treats as char *,
-$! exactly as GNU C does.
+$! exactly as GNU C does; and UNSUPCONVSPEC: VSI C 7.4 (IA64) warns that it may
+$! not support %zu in printf, but its C RTL prints %zu, %zd and %5zu correctly
+$! (NOTES N5), and openrsync has 46 of them.
 $ cflags = "/NAMES=(AS_IS,SHORTENED)/PREFIX_LIBRARY_ENTRIES=ALL_ENTRIES" + -
-    "/WARNINGS=(ERRORS=IMPLICITFUNC,DISABLE=(MIXFUNCVOID,BADPTRARITH))/MAIN=POSIX_EXIT" + -
+    "/WARNINGS=(ERRORS=IMPLICITFUNC,DISABLE=(MIXFUNCVOID,BADPTRARITH,UNSUPCONVSPEC))/MAIN=POSIX_EXIT" + -
     "/DEFINE=(_USE_STD_STAT,_LARGEFILE,_POSIX_EXIT,_SOCKADDR_LEN)" + -
     "/INCLUDE=([],[.VMS],ZLIB$ROOT:[INCLUDE])/NOLIST"
 $ failed == 0

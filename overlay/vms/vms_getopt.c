@@ -9,6 +9,8 @@
 #include <string.h>
 #include "getopt.h"
 
+extern char *__progname;                 /* "rsync" (vms_crtl_init.c) */
+
 static int sp = 1;                       /* position inside a cluster of short options */
 
 static const char *shorts(const char *os) { return (*os == '+' || *os == '-') ? os + 1 : os; }
@@ -88,20 +90,20 @@ static int scan(int argc, char * const *argv, const char *os, const struct optio
             const char *name = a + (a[1] == '-' ? 2 : 1), *eq = strchr(name, '=');
             int i = find_long(name, lo);
             if (i == -2) {
-                if (opterr) fprintf(stderr, "%s: option '%s' is ambiguous\n", argv[0], a);
+                if (opterr) fprintf(stderr, "%s: option '%s' is ambiguous\n", __progname, a);
                 optind++; optopt = 0; return '?';
             }
             if (i >= 0) {
                 optind++;
                 if (eq) {
                     if (lo[i].has_arg == no_argument) {
-                        if (opterr) fprintf(stderr, "%s: option '--%s' takes no argument\n", argv[0], lo[i].name);
+                        if (opterr) fprintf(stderr, "%s: option '--%s' takes no argument\n", __progname, lo[i].name);
                         optopt = lo[i].val; return '?';
                     }
                     optarg = (char *) eq + 1;
                 } else if (lo[i].has_arg == required_argument) {
                     if (optind >= argc) {
-                        if (opterr && !quiet) fprintf(stderr, "%s: option '--%s' requires an argument\n", argv[0], lo[i].name);
+                        if (opterr && !quiet) fprintf(stderr, "%s: option '--%s' requires an argument\n", __progname, lo[i].name);
                         optopt = lo[i].val; return quiet ? ':' : '?';
                     }
                     optarg = argv[optind++];
@@ -111,7 +113,7 @@ static int scan(int argc, char * const *argv, const char *os, const struct optio
                 return lo[i].val;
             }
             if (a[1] == '-') {
-                if (opterr) fprintf(stderr, "%s: unrecognized option '%s'\n", argv[0], a);
+                if (opterr) fprintf(stderr, "%s: unrecognized option '%s'\n", __progname, a);
                 optind++; optopt = 0; return '?';
             }
         }
@@ -121,7 +123,7 @@ static int scan(int argc, char * const *argv, const char *os, const struct optio
         a = argv[optind];
         optopt = c;
         if (t < 0) {
-            if (opterr && !quiet) fprintf(stderr, "%s: unknown option -- %c\n", argv[0], c);
+            if (opterr && !quiet) fprintf(stderr, "%s: unknown option -- %c\n", __progname, c);
             if (a[++sp] == '\0') { optind++; sp = 1; }
             return '?';
         }
@@ -132,7 +134,7 @@ static int scan(int argc, char * const *argv, const char *os, const struct optio
         if (a[sp + 1] != '\0') optarg = (char *) a + sp + 1;
         else if (t == 1) {
             if (optind + 1 >= argc) {
-                if (opterr && !quiet) fprintf(stderr, "%s: option requires an argument -- %c\n", argv[0], c);
+                if (opterr && !quiet) fprintf(stderr, "%s: option requires an argument -- %c\n", __progname, c);
                 optind++; sp = 1;
                 return quiet ? ':' : '?';
             }
