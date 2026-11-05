@@ -80,3 +80,27 @@ shows `link.txt;1 -> target.txt`. Opening the link opens the target.
 - Probe 3, a libssh2 exec channel to Linux `rsync --server`.
 - Probe 9, a binary round trip through VSI sshd: it needs a key for logging in to
   yourself, or a Linux sshd.
+
+## N2. Probe 9: a program under VSI sshd is not binary-clean, 2026-11-05 (tools/probe9.sh)
+
+- **Method:** from Linux, `ssh host "mcr <work dir>probe_pair.exe -Child"` with the
+  usual key. That is how Linux rsync would start `rsync --server` on VMS. 1 KB and
+  10 MB of every byte value went in on stdin, and stdout was compared with them.
+  The user ran it: the permission check refuses a raw ssh command from the session.
+- **The data is mangled on both nodes.** The command runs on a terminal device, not
+  a pipe:
+  - IA64, 10 MB: the reply began `CR LF *OUTPUT OFF* CR LF` (byte 0x0F taken as
+    Ctrl/O), then stalled until the 120 s limit (probably 0x13, Ctrl/S).
+  - x86, 10 MB: 484,706 bytes came back, starting `#`, CR LF, and lines padded with
+    spaces: terminal formatting.
+  - 1 KB: nothing came back on either node.
+  - The child's stderr report (how `-Child` arrived) didn't come back at all.
+- **Consequence for the server side (later than release 1):** Linux rsync cannot
+  run `rsync --server` on VMS over VSI sshd as it stands. VFTP's SFTP works over the
+  same sshd because the sftp subsystem gets a binary channel. The routes left:
+  - an rsync daemon as a TCP/IP Services auxiliary server (rsync://, optionally
+    through an ssh tunnel);
+  - an sshd `Subsystem` entry, which Linux rsync would need a wrapper to reach.
+- **No effect on release 1 (VMS as the client):** there, the remote end is Linux sshd
+  with pipes, and our side's ssh client has a socket, not a terminal (N1 probe 2).
+  Probe 2's binary round trip against a Linux sshd is still to run.

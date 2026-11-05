@@ -63,6 +63,8 @@ exit review.
 - Tests in scratch directories at both ends.
 
 ## D8. Scope of release 1 (user's choice, 2026-11-03)
-- VMS as client to Linux and VMS rsync servers, over ssh and rsync://, and local
-  copies.
-- VMS as a server comes later.
+- VMS as client to Linux rsync servers, over ssh and rsync://, and local copies.
+- VMS as a server comes later. VSI sshd's exec path is not binary-clean (N2), so
+  that means an rsync daemon (a TCP/IP Services auxiliary server) or an sshd
+  subsystem, not `rsync --server` over a plain ssh command. That also rules out
+  VMS-to-VMS over ssh in release 1; VMS-to-VMS waits for the daemon.
