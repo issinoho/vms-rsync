@@ -164,6 +164,7 @@ None of them is a blocker on what is known now. Each gets a probe in Phase 0.
     from inherited fds.
   - Not covered: openrsync's regress/cunit tests (they need a Unix shell or
     upstream's harness); stderr under ssh commands; readpassphrase echo.
+  - Exit: signed off by the user, 2026-11-05.
 
 **Phase 2: the network.**
 - rsync:// against a Linux rsync daemon. The user starts it: the classifier refuses
