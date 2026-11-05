@@ -1,0 +1,52 @@
+Subject: start the remote shell or local server with vms_spawn on VMS
+
+VMS has no fork(). Build the command line in the parent, then
+vms_spawn() (vms/vms_spawn.c) vforks and execs it with the socketpair
+end as stdin and stdout and an explicit stderr (NOTES N1). The parent
+goes on exactly as upstream's fork() parent.
+
+--- a/main.c	2026-11-05 21:10:35.094690898 +0000
++++ b/main.c	2026-11-05 21:10:35.158970331 +0000
+@@ -1309,6 +1309,34 @@
+ 		err(ERR_IPC, "fcntl");
+ #endif
+ 
++#ifdef __VMS
++	/*
++	 * No fork() on VMS: build the command here, then vms_spawn() starts it
++	 * with fds[1] as its stdin and stdout (vfork+exec, vms/vms_spawn.c).
++	 */
++	memset(&sess, 0, sizeof(struct sess));
++	sess.opts = &opts;
++	args = fargs_cmdline(&sess, fargs, NULL);
++		if (verbose > 1) {
++			msg = strdup("opening connection using:");
++			for (i = 0; args[i] != NULL && msg != NULL; i++) {
++				if (asprintf(&ptr, "%s %s", msg, args[i]) < 0)
++					break;
++				free(msg);
++				msg = ptr;
++			}
++			LOG0("%s%s (%d args)", msg != NULL ? msg :
++			    args[0], ptr ? "" : " ...", i);
++			free(msg);
++		}
++
++	fflush(stdout);
++	if ((child = vms_spawn(args, fds[1], getprogname())) == -1)
++		err(ERR_IPC, "exec on '%s'", args[0]);
++	switch (child) {
++	case 0:
++		break;
++#else
+ 	switch ((child = fork())) {
+ 	case -1:
+ 		err(ERR_IPC, "fork");
+@@ -1347,6 +1375,7 @@
+ 		ERR("exec on '%s'", args[0]);
+ 		_exit(ERR_IPC);
+ 		/* NOTREACHED */
++#endif
+ 	default:
+ 		if (fargs->sink == NULL) {
+ 			assert(fargs->mode == FARGS_RECEIVER);

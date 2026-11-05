@@ -1,0 +1,71 @@
+Subject: logging macros: standard C99 variadic form
+
+The ERR/WARN/LOG macros drop the comma with GNU ##__VA_ARGS__, which
+VSI C does not accept. The format is always the first argument, so
+"#define ERR(...) rsync_err(__VA_ARGS__)" is the same in standard C99.
+
+--- a/extern.h	2026-11-05 21:18:03.185944683 +0000
++++ b/extern.h	2026-11-05 21:18:03.294850405 +0000
+@@ -633,36 +633,36 @@
+ 
+ #define MINIMUM(a, b) (((a) < (b)) ? (a) : (b))
+ 
+-#define LOG0(_fmt, ...) \
+-	rsync_log( -1, (_fmt), ##__VA_ARGS__)
+-#define LOG1(_fmt, ...) \
+-	rsync_log( 0, (_fmt), ##__VA_ARGS__)
+-#define LOG2(_fmt, ...) \
+-	rsync_log( 1, (_fmt), ##__VA_ARGS__)
+-#define LOG3(_fmt, ...) \
+-	rsync_log( 2, (_fmt), ##__VA_ARGS__)
+-#define LOG4(_fmt, ...) \
+-	rsync_log( 3, (_fmt), ##__VA_ARGS__)
+-#define ERRX1(_fmt, ...) \
+-	rsync_errx1( (_fmt), ##__VA_ARGS__)
+-#define WARNX(_fmt, ...) \
+-	rsync_warnx( (_fmt), ##__VA_ARGS__)
+-#define WARNX1(_fmt, ...) \
+-	rsync_warnx1( (_fmt), ##__VA_ARGS__)
+-#define WARN(_fmt, ...) \
+-	rsync_warn(0,  (_fmt), ##__VA_ARGS__)
+-#define WARN1(_fmt, ...) \
+-	rsync_warn(1,  (_fmt), ##__VA_ARGS__)
+-#define WARN2(_fmt, ...) \
+-	rsync_warn(2,  (_fmt), ##__VA_ARGS__)
++#define LOG0(...) \
++	rsync_log( -1, __VA_ARGS__)
++#define LOG1(...) \
++	rsync_log( 0, __VA_ARGS__)
++#define LOG2(...) \
++	rsync_log( 1, __VA_ARGS__)
++#define LOG3(...) \
++	rsync_log( 2, __VA_ARGS__)
++#define LOG4(...) \
++	rsync_log( 3, __VA_ARGS__)
++#define ERRX1(...) \
++	rsync_errx1( __VA_ARGS__)
++#define WARNX(...) \
++	rsync_warnx( __VA_ARGS__)
++#define WARNX1(...) \
++	rsync_warnx1( __VA_ARGS__)
++#define WARN(...) \
++	rsync_warn(0,  __VA_ARGS__)
++#define WARN1(...) \
++	rsync_warn(1,  __VA_ARGS__)
++#define WARN2(...) \
++	rsync_warn(2,  __VA_ARGS__)
+ 
+ #if defined(__sun) && defined(ERR)
+ # undef ERR
+ #endif
+-#define ERR(_fmt, ...) \
+-	rsync_err( (_fmt), ##__VA_ARGS__)
+-#define ERRX(_fmt, ...) \
+-	rsync_errx( (_fmt), ##__VA_ARGS__)
++#define ERR(...) \
++	rsync_err( __VA_ARGS__)
++#define ERRX(...) \
++	rsync_errx( __VA_ARGS__)
+ 
+ void	rsync_log_tag(enum iotag tag, const char *fmt, ...)
+ 			__attribute__((format(printf, 2, 3)));

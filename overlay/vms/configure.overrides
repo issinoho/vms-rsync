@@ -1,0 +1,14 @@
+# VMS has no <endian.h>: overlay/vms/endian.h supplies le32toh() and friends
+# (both architectures are little-endian), found on the [.VMS] include path.
+HAVE_ENDIAN_H=1
+# openrsync's own mknodat()/mkfifoat() (compats.c) work through fchdir(), which
+# VMS lacks; vms/vms_at.c supplies both, refusing devices and FIFOs (D6).
+HAVE_MKNODAT=1
+HAVE_MKFIFOAT=1
+# Not tests in tests.c: configure works these out from the build host itself
+# (Linux). VMS has no seccomp, <sha2.h> or systrace.
+HAVE_SECCOMP_HEADER=0
+HAVE_SHA2_H=0
+HAVE_SYSTRACE=0
+# getprogname() (compats.c) reads __progname, which vms/vms_crtl_init.c defines.
+HAVE___PROGNAME=1

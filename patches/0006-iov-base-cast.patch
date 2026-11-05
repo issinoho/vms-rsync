@@ -1,0 +1,16 @@
+Subject: io: iov_base from an int pointer via void *
+
+VSI C's struct iovec has char *iov_base (older BSD), so assigning an
+int * warns; through void * it is correct for both.
+
+--- a/io.c	2026-11-05 21:22:15.280283498 +0000
++++ b/io.c	2026-11-05 21:22:15.290939850 +0000
+@@ -391,7 +391,7 @@
+ 		wsz = (sz < 0xFFFFFF) ? sz : 0xFFFFFF;
+ 		tag = ((iotag + IOTAG_OFFSET) << 24) + (int)wsz;
+ 		tagbuf = htole32(tag);
+-		iov[0].iov_base = &tagbuf;
++		iov[0].iov_base = (void *)&tagbuf;
+ 		iov[0].iov_len = sizeof(tagbuf);
+ 		iov[1].iov_base = (void *)buf;
+ 		iov[1].iov_len = wsz;

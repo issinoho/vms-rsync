@@ -1,0 +1,56 @@
+Subject: struct stat times without st_mtim on VMS
+
+The VSI C RTL struct stat has st_atime and st_mtime (whole seconds) and
+no timespec members. Build the timespecs from them on VMS.
+
+--- a/copy.c	2026-11-05 21:18:03.197365390 +0000
++++ b/copy.c	2026-11-05 21:18:03.295291728 +0000
+@@ -350,8 +350,13 @@
+ 	 * the original destination file.
+ 	 */
+ 
++#ifdef __VMS
++	/* VMS keeps whole seconds; struct stat has st_mtime only. */
++	if (st.st_mtime != dstat->mtime.tv_sec) {
++#else
+ 	if (st.st_mtim.tv_sec != dstat->mtime.tv_sec ||
+ 	    st.st_mtim.tv_nsec != dstat->mtime.tv_nsec) {
++#endif
+ 		const struct timespec ts[] = {
+ 			dstat->atime, dstat->mtime,
+ 		};
+@@ -520,9 +525,15 @@
+ 		}
+ 
+ 		if (fromst.st_mtime != tost.st_mtime) {
++#ifdef __VMS
++			struct timespec ts[2];
++			ts[0].tv_sec = fromst.st_atime; ts[0].tv_nsec = 0;
++			ts[1].tv_sec = fromst.st_mtime; ts[1].tv_nsec = 0;
++#else
+ 			struct timespec ts[] = {
+ 				fromst.st_atim, fromst.st_mtim
+ 			};
++#endif
+ 			ret = futimens(tofd, ts);
+ 			if (ret == -1)
+ 				ERR("%s: futimens", tname);
+--- a/uploader.c	2026-11-05 21:18:03.208190635 +0000
++++ b/uploader.c	2026-11-05 21:18:03.296409732 +0000
+@@ -108,8 +108,16 @@
+ dstat_save(const struct stat *st, struct fldstat *dstat)
+ {
+ 	dstat->mode = st->st_mode;
++#ifdef __VMS
++	/* VMS keeps whole seconds; struct stat has st_atime and st_mtime only. */
++	dstat->atime.tv_sec = st->st_atime;
++	dstat->atime.tv_nsec = 0;
++	dstat->mtime.tv_sec = st->st_mtime;
++	dstat->mtime.tv_nsec = 0;
++#else
+ 	dstat->atime = st->st_atim;
+ 	dstat->mtime = st->st_mtim;
++#endif
+ 	dstat->uid = st->st_uid;
+ 	dstat->gid = st->st_gid;
+ }

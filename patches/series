@@ -1,0 +1,6 @@
+0001-compat-fts-nochdir.patch
+0002-main-vms-spawn.patch
+0003-standard-variadic-macros.patch
+0004-stat-times-vms.patch
+0005-fmap-void-pointer.patch
+0006-iov-base-cast.patch

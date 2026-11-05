@@ -1,0 +1,19 @@
+Subject: compat fts: always FTS_NOCHDIR on VMS
+
+The compat fts(3) saves and restores the working directory with
+open(".") and fchdir(); VMS can open neither a directory nor fchdir to
+one (NOTES N4). With FTS_NOCHDIR it walks by full path instead.
+
+--- a/compats.c	2026-11-05 21:10:35.094245561 +0000
++++ b/compats.c	2026-11-05 21:10:35.157068280 +0000
+@@ -2269,6 +2269,10 @@
+ 		return (NULL);
+ 	sp->fts_compar = compar;
+ 	sp->fts_options = options;
++#ifdef __VMS
++	/* No open(".") or fchdir() on VMS: always walk by full path. */
++	sp->fts_options |= FTS_NOCHDIR;
++#endif
+ 
+ 	/* Logical walks turn on NOCHDIR; symbolic links are too hard. */
+ 	if (FTS_ISSET(FTS_LOGICAL))

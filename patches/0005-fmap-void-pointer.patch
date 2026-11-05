@@ -1,0 +1,15 @@
+Subject: fmap: no arithmetic on void pointers
+
+&fm->map[offset] indexes a void *, a GNU extension VSI C rejects.
+
+--- a/fmap.c	2026-11-05 21:20:20.702405840 +0000
++++ b/fmap.c	2026-11-05 21:20:20.713313413 +0000
+@@ -85,7 +85,7 @@
+ 	if (offset + datasz > fm->mapsz)
+ 		WARNX1("Invalid access; mapsz=%zu, [%llu, %llu) requested",
+ 		    fm->mapsz, offset, offset + datasz);
+-	return &fm->map[offset];
++	return (char *)fm->map + offset;
+ }
+ 
+ /*
