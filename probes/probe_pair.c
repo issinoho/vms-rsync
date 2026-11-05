@@ -42,7 +42,7 @@ int main(int argc, char **argv)
     int sv[2], sw[2], rd, wr, cin, cout, st = 0, eof = 0, closed = 0, bad = -1;
     long total, sent = 0, got = 0, i;
     pid_t pid;
-    char *av[3], *av_ssh[16], *target = 0;
+    char *av[3], *av_ssh[18], *target = 0;
     if (argc > 1 && !strcasecmp(argv[1], "-child")) {
         fprintf(stderr, "CHILD: argv[1] arrived as [%s]\n", argv[1]);
         return child();
@@ -62,12 +62,14 @@ int main(int argc, char **argv)
     if (!strcmp(errhow, "pipe") && !pipe(ep)) cerr = ep[1];
     printf("PAIR: mode %s, stderr %s (fd %d)\n", how, errhow, cerr);
     av[0] = argv[0]; av[1] = "-child"; av[2] = 0;
-    {   /* probe_pair <MB> ssh <ssh image> <user@host> <port> <remote image>: probe 2 + 9 */
-        static char *sv_av[16], remote[300];
+    {   /* probe_pair <MB> ssh <ssh image> <user@host> <port> <remote command> [key]:
+           probe 2, VSI's ssh client as rsync's -e program, echoing through the remote command */
+        static char *sv_av[18], remote[300];
         if (argc > 6 && !strcmp(how, "ssh")) {
             int k2 = 0;
-            snprintf(remote, sizeof remote, "mcr %s -Child", argv[6]);
+            snprintf(remote, sizeof remote, "%s", argv[6]);
             sv_av[k2++] = "ssh"; sv_av[k2++] = "-T"; sv_av[k2++] = "-p"; sv_av[k2++] = argv[5];
+            if (argc > 7) { sv_av[k2++] = "-i"; sv_av[k2++] = argv[7]; }
             sv_av[k2++] = "-o"; sv_av[k2++] = "BatchMode=yes";
             sv_av[k2++] = "-o"; sv_av[k2++] = "StrictHostKeyChecking=no";
             sv_av[k2++] = "-o"; sv_av[k2++] = "UserKnownHostsFile=NLA0:";

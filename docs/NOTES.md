@@ -104,3 +104,45 @@ shows `link.txt;1 -> target.txt`. Opening the link opens the target.
 - **No effect on release 1 (VMS as the client):** there, the remote end is Linux sshd
   with pipes, and our side's ssh client has a socket, not a terminal (N1 probe 2).
   Probe 2's binary round trip against a Linux sshd is still to run.
+
+## N3. Probes 2 and 3: the ssh transport to Linux works both ways, 2026-11-05 (tools/probe23.sh)
+
+- **Method:** the user ran `tools/probe23.sh`.
+  - It started a private sshd on the Linux machine: a fresh test key, accepted only
+    from the nodes, and every command through `tools/probe_gate.sh`, which allows
+    only `cat` and one `rsync --server` command.
+  - On each node it ran `probes/probe23.com`, then deleted the key and `[.P23]`
+    (checked afterwards).
+  - The users' `known_hosts` files were not touched (`UserKnownHostsFile=NLA0:`):
+    no line for the test port on either node.
+- **Probe 2, VSI's ssh client as rsync's `-e` program:** `SSH$SSH.EXE`, started by
+  `vfork`+`execv` with one socketpair end as stdin and stdout and a pipe as stderr.
+  10 MB of every byte value through Linux `cat` came back **identical**, on both
+  nodes. The client's exit status arrived as 27 (`WEXITSTATUS`) for a remote
+  `cat` that ended 0. VMS status mapping is to be understood before rsync trusts it
+  (Phase 2).
+- **Probe 3, libssh2 1.11.1 in process** (the vms-libssh2 trees, as VFTP links it):
+  - handshake curve25519-sha256 with chacha20-poly1305, and key login;
+  - 10 MB through `cat`, written and read non-blocking with `poll` on the socket:
+    **identical**, exit status 0;
+  - `rsync --server --sender -r . <dir>/` (Linux rsync 3.4.1) sent its first 4
+    bytes: **protocol 32**.
+- **So both transports in D2 work for release 1.** VSI's ssh keeps the user's own
+  ssh configuration, keys and known_hosts. libssh2 needs no external program.
+
+## N4. openrsync pinned, 2026-11-05
+
+- Pinned commit `8235c68` (master, 2026-07-30), archive SHA-256 in `upstream.conf`.
+  It is 28,945 lines of C and headers, `compats.c` and the tests included.
+- **What VMS lacks**, counted outside `compats.c`:
+  - `fork` (5 calls) and `execvp`, all in one file;
+  - the `*at` family, about 150 calls in 8 files: `openat` 23, `fstatat` 30,
+    `unlinkat` 35, plus `mkdirat`, `renameat`, `symlinkat`, `readlinkat`, `linkat`,
+    `fchmodat`, `fchownat`, `utimensat`, `futimens`, `mkstempat`, `mknodat` and
+    `faccessat`;
+  - `mmap` (7 calls in 4 files).
+- `pledge` and `unveil` (53 calls) are OpenBSD-only and compiled out elsewhere
+  already.
+- **The `*at` calls point to a shim library, not per-call patches.** It needs
+  directory fds, and VMS can't `open()` a directory (vms-mariadb's probes), so a
+  directory "fd" will be a stand-in registered with its path.

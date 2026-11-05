@@ -21,14 +21,15 @@ exit review.
 - **Rejected: a clean-room client** (as vms-beszel). The rsync protocol is large and
   thinly documented; openrsync already implements it in about 15k lines.
 
-## D2. Transport (proposed; N1 probes 1-2)
+## D2. Transport (proposed; N1, N3)
 - `rsync://` is a TCP socket, with no child process.
 - `host:path` runs the `-e` program by `vfork`+`execve`, with one socketpair end as
   its stdin and stdout and **a pipe as its stderr**, relayed by rsync (N1: an
   inherited stderr fails under ssh commands).
-- Default program: VSI's ssh (`SSH$ROOT:[BIN.<arch>]SSH$SSH.EXE`) if probe 9 shows it
-  is binary-clean. Otherwise a small libssh2 helper, `RSYNC_SSH`, built from VFTP's
-  SSH code.
+- Default program: VSI's ssh (`SSH$ROOT:[BIN.<arch>]SSH$SSH.EXE`). It carried 10 MB
+  intact to and from a Linux sshd (N3 probe 2) and keeps the user's ssh setup.
+  libssh2 in process also works (N3 probe 3), and stays the fallback if VSI ssh's
+  exit statuses or options turn out awkward in Phase 2.
 
 ## D3. Text files: record-aware (user's choice, 2026-11-03)
 - Sent: VAR/VFC files with carriage control go as LF lines; anything else goes as
