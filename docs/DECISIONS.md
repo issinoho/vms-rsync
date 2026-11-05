@@ -1,15 +1,15 @@
 # vms-rsync: decisions
 
-Each decision with the alternatives considered. Status: **proposed** until the Phase 0
-exit review.
+Each decision with the alternatives considered. D0-D8 accepted by the user at the
+Phase 0 exit review, 2026-11-05.
 
-## D0. Names (proposed)
+## D0. Names
 - Repository `vms-rsync`; command `rsync`.
 - PCSI product `RSYNC`, unless that clashes with a VSI or freeware kit, in which case
   `VMSRSYNC` (as VMSCURL).
 - Version "openrsync-<date>-vmsN", PCSI T-version while an early test.
 
-## D1. Base: openrsync, not samba rsync (proposed)
+## D1. Base: openrsync, not samba rsync
 - **Chosen:** openrsync (ISC licence; OpenBSD's rsync, also shipped by macOS),
   pinned to a master commit by SHA-256 (no signed releases), as a port: upstream +
   `patches/` + `overlay/vms/`. Its generator and receiver are one process with a
@@ -21,7 +21,7 @@ exit review.
 - **Rejected: a clean-room client** (as vms-beszel). The rsync protocol is large and
   thinly documented; openrsync already implements it in about 15k lines.
 
-## D2. Transport (proposed; N1, N3)
+## D2. Transport
 - `rsync://` is a TCP socket, with no child process.
 - `host:path` runs the `-e` program by `vfork`+`execve`, with one socketpair end as
   its stdin and stdout and **a pipe as its stderr**, relayed by rsync (N1: an
@@ -44,13 +44,13 @@ exit review.
 - `--delete` removes every version of a file the source no longer has, and only
   when asked.
 
-## D5. Names and paths (proposed)
+## D5. Names and paths
 - ODS-5 destination only.
 - C RTL feature switches set before `main` (as vms-grep's `vms_crtl_init.c`).
 - VMS specs are accepted as arguments.
 - Names that differ only in case are an error for that file.
 
-## D6. Attributes (proposed)
+## D6. Attributes
 - `-t` sets the revision date (probe 5).
 - `-p` maps to protection (probe 6), and rsync always sets protection after the
   rename (probe 4).
@@ -58,7 +58,7 @@ exit review.
 - `-o`/`-g` are not supported (UICs).
 - `-H`, devices and specials are refused.
 
-## D7. Safety (proposed)
+## D7. Safety
 - No in-place writes (`--inplace` refused).
 - Deletion only with `--delete`, previewed by `-n`.
 - Tests in scratch directories at both ends.

@@ -144,6 +144,9 @@ None of them is a blocker on what is known now. Each gets a probe in Phase 0.
 - Also write `docs/PLAN.md`, `DECISIONS.md` (D0–D9) and `NOTES.md`, and fetch and pin
   openrsync.
 - **Exit:** the probes are answered and the user agrees to D0–D9.
+- **Status:** done. All ten probes answered (NOTES N1–N3), openrsync pinned (N4).
+  Probe 9 moved VMS-to-VMS over ssh out of release 1 (D8).
+  Exit: signed off by the user, 2026-11-05; D0–D8 accepted.
 
 **Phase 1: build and local copies.**
 - `patches/` for the forks, the `*at` shim (`overlay/vms/vms_at.c`), `compats` and
