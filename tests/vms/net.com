@@ -56,16 +56,17 @@ $ call run d3 "-a nt/src/ ''d'/push/"
 $ call md5s "dpull" dpull
 $!
 $ call md5s "src" src
-$! VSI ssh's own exit status: a remote command that ends 0, and one refused (1)
+$! VSI ssh's own exit status for a remote command that ends 0 and one that ends 1
+$! (the gate's exit-status commands); -n: ssh must not wait on its own input
 $ ssh_img = "SSH$ROOT:[BIN.''f$edit(f$getsyi("ARCH_NAME"),"UPCASE")']SSH$SSH.EXE"
 $ vssh := $'ssh_img'
 $ define/user sys$output nla0:
 $ define/user sys$error nla0:
-$ vssh -p 'p2' -i 'key' -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=NLA0: 'p3'@'p1' "rsync --server --version"
+$ vssh -n -p 'p2' -i 'key' -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=NLA0: 'p3'@'p1' "exit-status 0"
 $ say "NET: ssh exit for a remote 0: ", $status
 $ define/user sys$output nla0:
 $ define/user sys$error nla0:
-$ vssh -p 'p2' -i 'key' -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=NLA0: 'p3'@'p1' "refused please"
+$ vssh -n -p 'p2' -i 'key' -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=NLA0: 'p3'@'p1' "exit-status 1"
 $ say "NET: ssh exit for a remote 1: ", $status
 $ delete/nolog 'key';*
 $ set security/protection=o:rwed net.dir;1

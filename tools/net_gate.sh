@@ -8,6 +8,8 @@ echo "$(date '+%H:%M:%S') [$cmd]" >> "$d/gate.log"
 refuse() { echo "net gate: refused: $1" >&2; echo "$(date '+%H:%M:%S')   refused: $1" >> "$d/gate.log"; exit 1; }
 case $cmd in
 "rsync --server "*) ;;
+"exit-status 0") exit 0 ;;          # for net.com's check of VSI ssh's exit status
+"exit-status 1") exit 1 ;;
 *) refuse "not an rsync server command" ;;
 esac
 case $cmd in *[\;\&\|\`\$\<\>\\\"\'\(\)\{\}]*) refuse "shell metacharacters" ;; esac
