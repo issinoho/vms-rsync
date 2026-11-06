@@ -1,0 +1,18 @@
+Subject: a clear error for a push to an rsync:// daemon
+
+openrsync can only pull from a daemon, and asserts on a push (on every
+system). Say so instead of aborting.
+
+--- a/main.c	2026-11-06 11:39:53.507401148 +0000
++++ b/main.c	2026-11-06 11:39:53.542983296 +0000
+@@ -1280,7 +1280,9 @@
+ 	 */
+ 
+ 	if (fargs->remote && opts.ssh_prog == NULL) {
+-		assert(fargs->mode == FARGS_RECEIVER);
++		if (fargs->mode != FARGS_RECEIVER)
++			errx(ERR_SYNTAX, "copying to an rsync:// daemon is not "
++			    "supported; openrsync can only copy from one");
+ 		if ((c = rsync_connect(&opts, &sd, fargs)) == 0) {
+ 			c = rsync_socket(&opts, sd, fargs);
+ 			close(sd);
