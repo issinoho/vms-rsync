@@ -31,8 +31,9 @@ open(r + "/dir/x.txt", "w").write("in dir\n")
 open(r + "/dir/sub/y.bin", "wb").write(os.urandom(70000))
 EOF
 
+cp -a "$d/lsrc" "$d/daemon/lsrc"
 "$top/tools/build.sh" "$node" > /dev/null || { echo "net: build failed (out/build-$node.log)" >&2; exit 1; }
-"$top/tools/vms.sh" "$node" put "$top/tests/vms/mkfiles.c" -- tests/vms > /dev/null 2>&1 || true
+"$top/tools/vms.sh" "$node" put "$top/tests/vms/mkfiles.c" "$top/tests/vms/md5tree.c" -- tests/vms > /dev/null 2>&1 || true
 "$top/tools/vms.sh" "$node" put "$d/net_key" -- net > /dev/null 2>&1 || true
 out=$top/out/net-$node.txt
 VMS_TIMEOUT=1800 "$top/tools/vms.sh" "$node" run tests/vms/net.com "$addr" "$sport" "$(id -un)" "$dport" "$d" |
@@ -45,10 +46,9 @@ out, d = sys.argv[1], sys.argv[2]
 vms = {}
 for line in open(out, errors="replace"):
     if line.startswith("NETMD5 "):
-        _, tree, rel, md5 = line.split(None, 3)
-        vms.setdefault(tree, {})[rel.upper()] = md5.strip().upper()
-def unvms(rel):   # VMS name -> as the file was named: ^_ is a space, ^. a dot
-    return rel.replace("^_", " ").replace("^.", ".")
+        parts = line.rstrip("\n").split(" ")
+        tree, md5, rel = parts[1].lower(), parts[-1].upper(), " ".join(parts[2:-1])
+        vms.setdefault(tree, {})[rel.upper()] = md5
 def linux(root):
     m = {}
     for dp, dn, fn in os.walk(root):
@@ -57,8 +57,8 @@ def linux(root):
             rel = os.path.relpath(p, root)
             m[rel.upper()] = hashlib.md5(open(p, "rb").read()).hexdigest().upper()
     return m
-def vmsview(tree):  # VMS names lose a trailing dot for no type: "README." -> "README"
-    return {unvms(k[:-1] if k.endswith(".") else k): v for k, v in vms.get(tree, {}).items()}
+def vmsview(tree):
+    return dict(vms.get(tree, {}))
 fails = 0
 def check(what, a, b, an, bn):
     global fails
@@ -72,10 +72,10 @@ def check(what, a, b, an, bn):
 src = vmsview("src")
 check("ssh push: Linux push/ = the node's tree", linux(d + "/push"), src, "linux", "vms")
 check("ssh push --partial: Linux push2/ = the node's tree", linux(d + "/push2"), src, "linux", "vms")
-check("rsync:// push: Linux daemon/push/ = the node's tree", linux(d + "/daemon/push"), src, "linux", "vms")
 ls = linux(d + "/lsrc")
 for t in ("pull", "pullz", "pull2"):
     check("ssh pull (%s): the node's tree = Linux lsrc/" % t, vmsview(t), ls, "vms", "linux")
-check("rsync:// pull: the node's dpull = its own tree", vmsview("dpull"), src, "dpull", "src")
+check("rsync:// pull: the node's dpull = Linux lsrc/", vmsview("dpull"), ls, "vms", "linux")
+check("rsync:// push refused: nothing in Linux daemon/push/", linux(d + "/daemon/push"), {}, "linux", "none")
 sys.exit(1 if fails else 0)
 EOF
