@@ -32,6 +32,10 @@ open(r + "/dir/sub/y.bin", "wb").write(os.urandom(70000))
 EOF
 
 cp -a "$d/lsrc" "$d/daemon/lsrc"
+# names that differ only in case (D5): one file on VMS
+rm -rf "$d/lcase"; mkdir -p "$d/lcase"
+printf 'the first name\n' > "$d/lcase/Readme.TXT"
+printf 'the second name\n' > "$d/lcase/README.txt"
 "$top/tools/build.sh" "$node" > /dev/null || { echo "net: build failed (out/build-$node.log)" >&2; exit 1; }
 "$top/tools/vms.sh" "$node" put "$top/tests/vms/mkfiles.c" "$top/tests/vms/md5tree.c" -- tests/vms > /dev/null 2>&1 || true
 "$top/tools/vms.sh" "$node" put "$d/net_key" -- net > /dev/null 2>&1 || true
@@ -76,6 +80,21 @@ ls = linux(d + "/lsrc")
 for t in ("pull", "pullz", "pull2"):
     check("ssh pull (%s): the node's tree = Linux lsrc/" % t, vmsview(t), ls, "vms", "linux")
 check("rsync:// pull: the node's dpull = Linux lsrc/", vmsview("dpull"), ls, "vms", "linux")
+# Phase 3
+check("pulled back: the node's back = its own tree (LF lines)", vmsview("back"), src, "back", "src")
+rfm = {}
+for line in open(out, errors="replace"):
+    if line.startswith("NETRFM back "):
+        _, _, name, f = line.split()
+        rfm[name.upper()] = f
+want = {"NOTES.TXT": "VAR", "BLANK.TXT": "VAR", "A.TXT": "VAR", "DATA.DAT": "STMLF", "FIX.BIN": "STMLF", "BIN.DAT": "STMLF"}
+bad = {k: (rfm.get(k), v) for k, v in want.items() if rfm.get(k) != v}
+print("CHECK %-58s %s %s" % ("pulled back: record formats (text types VAR)", "ok" if not bad else "FAILED", bad or ""))
+if bad: fails += 1
+case = vmsview("case")
+ok = len(case) == 1
+print("CHECK %-58s %s (%d files: %s)" % ("case: Readme.TXT and README.txt, one written", "ok" if ok else "FAILED", len(case), ", ".join(case)))
+if not ok: fails += 1
 check("rsync:// push refused: nothing in Linux daemon/push/", linux(d + "/daemon/push"), {}, "linux", "none")
 sys.exit(1 if fails else 0)
 EOF

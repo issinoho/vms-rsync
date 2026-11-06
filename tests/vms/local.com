@@ -19,6 +19,20 @@ $ mk change lt/src
 $! a local copy is whole-file by default, as rsync's: ask for the delta
 $ call run 3 "-a --stats --no-whole-file lt/src/ lt/dst/"
 $ call compare
+$!
+$! ---- Phase 3: versions (D4) and VMS specifications (D5)
+$ call versions bin.dat "before run 4"
+$ mk change2 lt/src
+$ call run 4a "-a lt/src/ lt/dst/"
+$ mk change lt/src
+$ call run 4 "-a --keep-versions=2 lt/src/ lt/dst/"
+$ call versions bin.dat "after --keep-versions=2 (want 2)"
+$ call versions bin.dat "before --delete"
+$ delete/nolog [.lt.src]bin.dat;*
+$ call run 5 "-a --delete lt/src/ lt/dst/"
+$ call versions bin.dat "after --delete (want 0)"
+$ call run 6 "-a [.lt.src] [.lt.dst2]"
+$ call compare dst2
 $ directory/size=used/date=modified/protection [.lt...]
 $ call wipe
 $ say "LOCAL-DONE"
@@ -34,8 +48,19 @@ $ say "LOCAL: run ", p1, " (", p2, ") status ", st
 $ type [.lt]run'p1'.out,[.lt]run'p1'.err
 $ endsubroutine
 $!
+$versions: subroutine
+$ set noon
+$ n = 0
+$vl: if f$search("[.lt.dst]''p1';*", 6) .eqs. "" then goto vd
+$ n = n + 1
+$ goto vl
+$vd: say "LOCAL: VERSIONS ", p1, " ", p2, ": ", n
+$ endsubroutine
+$!
 $compare: subroutine
 $ set noon
+$ to = "DST"
+$ if p1 .nes. "" then to = p1
 $ n = 0
 $ bad = 0
 $cloop:
@@ -43,7 +68,7 @@ $ f = f$search("[.lt.src...]*.*;0", 3)
 $ if f .eqs. "" then goto cdone
 $ if f$parse(f,,,"TYPE") .eqs. ".DIR" then goto cloop
 $ i = f$locate(".LT.SRC", f)
-$ d = f$extract(0, i, f) + ".LT.DST" + f$extract(i + 7, 999, f)
+$ d = f$extract(0, i, f) + ".LT." + to + f$extract(i + 7, 999, f)
 $ d = f$element(0, ";", d)
 $ a = "(none)"
 $ b = "(none)"
@@ -73,7 +98,7 @@ $   say "LOCAL: DIFFERS ", f$parse(f,,,"NAME"), f$parse(f,,,"TYPE"), " ", a, " "
 $ endif
 $ goto cloop
 $cdone:
-$ say "LOCAL: compared ", n, " files, ", bad, " differ"
+$ say "LOCAL: compared ", n, " files with ", to, ", ", bad, " differ"
 $ endsubroutine
 $!
 $wipe: subroutine
@@ -82,6 +107,11 @@ $! "*.*" does not match a name with no name part (".profile"): ".*" does
 $ set security/protection=o:rwed [.lt...].*;*
 $ delete/nolog [.lt...].*;*
 $ set security/protection=o:rwed [.lt...]*.*;*
+$ delete/nolog [.lt.dst2...]*.*;*
+$ delete/nolog [.lt.dst2...]*.*;*
+$ delete/nolog [.lt.dst2...]*.*;*
+$ set security/protection=o:rwed [.lt]dst2.dir;1
+$ delete/nolog [.lt]dst2.dir;1
 $ delete/nolog [.lt.src.sub.deeper]*.*;*, [.lt.dst.sub.deeper]*.*;*
 $ delete/nolog [.lt.src.sub]*.*;*, [.lt.dst.sub]*.*;*
 $ delete/nolog [.lt.src]*.*;*, [.lt.dst]*.*;*

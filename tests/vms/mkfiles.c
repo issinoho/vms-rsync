@@ -79,6 +79,12 @@ int main(int argc, char **argv)
         fputs("first\n\nafter one empty line\n\n\nafter two\n\n", f);
         fclose(f);
         sprintf(p, "%s/.profile", argv[2]); text(p, 2);     /* no name part */
+    } else if (!strcmp(argv[1], "change2")) {               /* another change: 'Y' */
+        sprintf(p, "%s/bin.dat", argv[2]);
+        if (!(f = fopen(p, "r+b"))) { perror(p); return 2; }
+        fseek(f, 1000, SEEK_SET);
+        for (i = 0; i < 100; i++) fputc('Y', f);
+        fclose(f);
     } else {
         sprintf(p, "%s/bin.dat", argv[2]);
         if (!(f = fopen(p, "r+b"))) { perror(p); return 2; }

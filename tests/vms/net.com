@@ -37,6 +37,13 @@ $ call run s2 "-a --stats -e ""''e'"" nt/src/ ''r'/push/"
 $ mk change nt/src
 $ call run s3 "-a --stats -e ""''e'"" nt/src/ ''r'/push/"
 $ define/process RSYNC_VMS_TRACE 1
+$! Phase 3: the pushed tree pulled back (D3: records again for text types)
+$ call run s12 "-a --stats -e ""''e'"" ''r'/push/ nt/back/"
+$ call md5s "back" back
+$ call rfms "back" back
+$! names that differ only in case: one written, the other refused (D5)
+$ call run s13 "-a -e ""''e'"" ''r'/lcase/ nt/case/"
+$ call md5s "case" case
 $ call run s4 "-a -vvvv --stats -e ""''e'"" ''r'/lsrc/ nt/pull/"
 $ deassign/process RSYNC_VMS_TRACE
 $ call run s5 "-a --stats -e ""''e'"" ''r'/lsrc/ nt/pull/"
@@ -93,6 +100,16 @@ $! NETMD5 <tree> <relative path> <md5> for every file under nt/<p2> (md5tree.c)
 $md5s: subroutine
 $ set noon
 $ md5tree 'p1' nt/'p2'
+$ endsubroutine
+$!
+$! NETRFM <tree> <name> <record format> for every file in [.NT.<p2>]
+$rfms: subroutine
+$ set noon
+$rl: f = f$search("[.NT.''p2']*.*;0", 7)
+$ if f .eqs. "" then exit 1
+$ if f$parse(f,,,"TYPE") .eqs. ".DIR" then goto rl
+$ say "NETRFM ", p1, " ", f$parse(f,,,"NAME"), f$parse(f,,,"TYPE"), " ", f$file_attributes(f, "RFM")
+$ goto rl
 $ endsubroutine
 $!
 $wipe: subroutine

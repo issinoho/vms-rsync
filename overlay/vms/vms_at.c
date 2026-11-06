@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <utime.h>
 #include <unixio.h>
+#include <unixlib.h>
 #include <ctype.h>
 #include <rms.h>
 #include <starlet.h>
@@ -269,6 +270,88 @@ static int to_records(const char *path)
     return 0;
 }
 
+/* ---- Versions (D4) and names (D5), NOTES N7 ------------------------------ */
+
+/* p's VMS specification without its version, from an open file; 0 if none. */
+static int vms_spec(const char *p, char *out)
+{
+    int fd = open(p, O_RDONLY);
+    char *semi;
+    if (fd < 0) return 0;
+    if (getname(fd, out, 1) == NULL) { close(fd); return 0; }
+    close(fd);
+    if ((semi = strrchr(out, ';')) != NULL) *semi = '\0';
+    return 1;
+}
+
+/* --keep-versions=N (RSYNC_KEEP_VERSIONS): delete all but p's newest N. */
+static void purge_versions(const char *p)
+{
+    const char *k = getenv("RSYNC_KEEP_VERSIONS");
+    char spec[PATH_MAX], old[PATH_MAX + 16];
+    int keep = k ? atoi(k) : 0, n = 0;
+    if (keep < 1 || !vms_spec(p, spec)) return;
+    sprintf(old, "%s;-%d", spec, keep);              /* the newest beyond those kept */
+    while (n < 100000 && remove(old) == 0) n++;
+    if (n && trace > 0) fprintf(stderr, "vms_at: kept %d versions of %s, deleted %d\n", keep, p, n);
+}
+
+/* Names that differ only in case are one file on VMS: a second one written in
+   the same run would only be a new version of the first, so it is refused. */
+#define MAXCASE 4096
+static char *casenames[MAXCASE];
+
+static int case_clash(const char *p)
+{
+    unsigned long h = 5381;
+    const char *c;
+    int i;
+    for (c = p; *c; c++) h = h * 33 + (unsigned char) tolower((unsigned char) *c);
+    for (i = (int) (h % MAXCASE); casenames[i]; i = (i + 1) % MAXCASE) {
+        if (!strcmp(casenames[i], p)) return 0;      /* the same name again */
+        {
+            const char *a = casenames[i], *b = p;
+            while (*a && tolower((unsigned char) *a) == tolower((unsigned char) *b)) a++, b++;
+            if (!*a && !*b) {
+                fprintf(stderr, "rsync: %s: not written: on VMS it is the same file as %s\n", p, casenames[i]);
+                errno = EEXIST;
+                return 1;
+            }
+        }
+    }
+    casenames[i] = strdup(p);
+    return 0;
+}
+
+/* Operands that are VMS specifications become paths (D5): anything with a
+   directory in brackets, or "name:..." where name is a device or logical name
+   here (a remote "host:path" is not, unless host also names one: write
+   user@host:path then). A directory specification means its contents, as
+   "dir/" does. */
+void vms_operands(int argc, char **argv)
+{
+    int i;
+    for (i = 0; i < argc; i++) {
+        const char *a = argv[i], *u;
+        char dev[256], *colon, buf[PATH_MAX];
+        struct stat st;
+        int is_spec = strpbrk(a, "[<") != NULL && strchr(a, '@') == NULL;
+        if (!is_spec && (colon = strchr(a, ':')) != NULL && strchr(a, '@') == NULL &&
+            strchr(a, '/') == NULL && colon - a < (int) sizeof dev - 1 && colon > a) {
+            memcpy(dev, a, (size_t) (colon - a + 1)); dev[colon - a + 1] = '\0';
+            u = decc$translate_vms(dev);
+            is_spec = u && u != (char *) -1 && stat(u, &st) == 0;
+        }
+        if (!is_spec) continue;
+        u = decc$translate_vms(a);
+        if (u == NULL || u == (char *) -1) continue;
+        snprintf(buf, sizeof buf, "%s%s", u,
+                 (a[strlen(a) - 1] == ']' || a[strlen(a) - 1] == '>') && u[strlen(u) - 1] != '/' ? "/" : "");
+        if (trace > 0) fprintf(stderr, "vms_at: operand %s is %s\n", a, buf);
+        argv[i] = strdup(buf);
+    }
+}
+
 static int openpath(const char *p, int flags, mode_t mode)
 {
     struct stat st;
@@ -326,8 +409,15 @@ int unlinkat(int dfd, const char *name, int flag)
 {
     char buf[PATH_MAX];
     const char *p = join(dfd, name, buf, sizeof buf);
+    int rc, n = 0;
     if (p == NULL) return -1;
-    return (flag & AT_REMOVEDIR) ? rmdir(p) : unlink(p);
+    if (flag & AT_REMOVEDIR) return rmdir(p);
+    /* every version (D4): unlink() deletes only the newest, and the file
+       would seem to come back as the one before */
+    if ((rc = unlink(p)) == 0)
+        while (n < 100000 && unlink(p) == 0) n++;
+    tr("unlink, versions after the first", p, n);
+    return rc;
 }
 
 /* Copy a file's bytes from one name to another (the target a new file or a
@@ -362,6 +452,7 @@ int renameat(int fdfd, const char *from, int tdfd, const char *to)
     const char *p1 = join(fdfd, from, b1, sizeof b1), *p2 = join(tdfd, to, b2, sizeof b2), *base;
     int rc;
     if (!p1 || !p2) return -1;
+    if (case_clash(p2)) return -1;
     base = strrchr(p2, '/');
     base = base ? base + 1 : p2;
     if (base[0] == '.' && base[1] != '\0' && strcmp(base, "..") && strchr(base + 1, '.') == NULL) {
@@ -593,6 +684,7 @@ int vms_close(int fd)
                 if (trace > 0) fprintf(stderr, "vms_at: close(%d) sets the times again\n", fd);
                 settimes(now, wf[i].ts);
             }
+            if (wf[i].renamed || wf[i].copy_to) purge_versions(now);
             free(wf[i].path);
             free(wf[i].copy_to);
             wf[i].path = NULL;

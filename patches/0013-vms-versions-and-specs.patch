@@ -1,0 +1,62 @@
+Subject: --keep-versions, and VMS specifications as operands, on VMS
+
+--keep-versions=N keeps the newest N versions of each file updated on
+VMS (D4): it is passed to the receiver as RSYNC_KEEP_VERSIONS in the
+environment, which a local --server inherits. Operands that are VMS
+specifications (DISK$USER:[DIR]FILE.TXT, [.SUB]) become paths (D5),
+vms/vms_at.c.
+
+--- a/main.c	2026-11-06 20:00:21.989162538 +0000
++++ b/main.c	2026-11-06 20:00:22.025272169 +0000
+@@ -443,6 +443,9 @@
+ 	OP_INCLUDE_FROM,
+ 	OP_LINK_DEST,
+ 	OP_MAX_DELETE,
++#ifdef __VMS
++	OP_KEEP_VERSIONS,
++#endif
+ 	OP_MAX_SIZE,
+ 	OP_MIN_SIZE,
+ 	OP_OUT_FORMAT,
+@@ -506,6 +509,9 @@
+     /* Deprecated, same as --out-format */
+     { "log-format",	required_argument, NULL,		OP_OUT_FORMAT },
+     { "max-delete",	required_argument, NULL,		OP_MAX_DELETE },
++#ifdef __VMS
++    { "keep-versions",	required_argument, NULL,		OP_KEEP_VERSIONS },
++#endif
+     { "max-size",	required_argument, NULL,		OP_MAX_SIZE },
+     { "min-size",	required_argument, NULL,		OP_MIN_SIZE },
+     { "no-J",		no_argument,	NULL, 			OP_SET_BOOL_FALSE }, /* XXX */
+@@ -1061,6 +1067,20 @@
+ 				errx(ERR_SYNTAX, "--max-delete=%s: %s",
+ 				    optarg, errstr);
+ 			break;
++#ifdef __VMS
++		case OP_KEEP_VERSIONS:
++			/*
++			 * Keep this many versions of each file updated on
++			 * VMS (D4). An environment variable, so a local
++			 * --server started by this process sees it too.
++			 */
++			(void)strtonum(optarg, 1, 32767, &errstr);
++			if (errstr != NULL)
++				errx(ERR_SYNTAX, "--keep-versions=%s: %s",
++				    optarg, errstr);
++			setenv("RSYNC_KEEP_VERSIONS", optarg, 1);
++			break;
++#endif
+ 		case OP_MAX_SIZE:
+ 			if (scan_scaled(optarg, &tmpint) == -1 ||
+ 			    tmpint < 0)
+@@ -1218,6 +1238,10 @@
+ 
+ 	argc -= optind;
+ 	argv += optind;
++#ifdef __VMS
++	/* VMS specifications among the operands, as paths (D5). */
++	vms_operands(argc, argv);
++#endif
+ 
+ 	if (argc < 2) {
+ 		usage();
