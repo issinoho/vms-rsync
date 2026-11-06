@@ -203,6 +203,7 @@ None of them is a blocker on what is known now. Each gets a probe in Phase 0.
   - Not covered: a VMS sender's own symlinks and protection other than by
     mode; text files over 32,767-byte lines in a round trip (D3a keeps them
     stream); large trees for speed.
+  - Exit: signed off by the user, 2026-11-06.
 
 **Phase 4: kit and release.**
 - PCSI kits:
