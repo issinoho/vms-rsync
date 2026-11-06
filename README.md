@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/images/banner.svg" alt="rsync for OpenVMS: a DECterm window pulling a tree from Linux with --keep-versions, and the directory showing the new version of a file" width="100%">
+</p>
+
 # vms-rsync
 
 rsync for OpenVMS (x86-64 and IA64), ported from [openrsync](https://github.com/kristapsdz/openrsync),
