@@ -18,6 +18,12 @@ stop() {
         [ -f "$d/$f" ] && kill "$(cat "$d/$f")" 2>/dev/null || true
         rm -f "$d/$f"
     done
+    # a daemon's per-connection child can outlive it (NOTES N6): any process
+    # still running from this test's configuration goes too
+    pkill -f -- "--config=$d/rsyncd.conf" 2>/dev/null || true
+    sleep 1
+    pkill -KILL -f -- "--config=$d/rsyncd.conf" 2>/dev/null || true
+    pkill -f -- "-f $d/sshd_config" 2>/dev/null || true
     rm -f "$d/net_key"
 }
 case ${1:-} in
@@ -55,7 +61,8 @@ ForceCommand /bin/bash $top/tools/net_gate.sh $d
 LogLevel VERBOSE
 EOF
 /usr/sbin/sshd -t -f "$d/sshd_config"
-/usr/sbin/sshd -f "$d/sshd_config" -E "$d/sshd.log"
+# without the caller's node lock (net.sh's fd 9): a server must not hold it
+/usr/sbin/sshd -f "$d/sshd_config" -E "$d/sshd.log" 9>&-
 cat > "$d/rsyncd.conf" <<EOF
 pid file = $d/rsyncd.pid
 address = $listen
@@ -69,7 +76,7 @@ hosts deny = *
     read only = no
     list = no
 EOF
-rsync --daemon --config="$d/rsyncd.conf"
+rsync --daemon --config="$d/rsyncd.conf" 9>&-
 sleep 1
 [ -f "$d/sshd.pid" ] || { echo "net_servers: sshd did not start" >&2; cat "$d/sshd.log" >&2; stop; exit 1; }
 [ -f "$d/rsyncd.pid" ] || { echo "net_servers: rsync daemon did not start" >&2; cat "$d/rsyncd.log" >&2; stop; exit 1; }

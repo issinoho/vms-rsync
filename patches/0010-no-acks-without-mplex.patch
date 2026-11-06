@@ -1,0 +1,26 @@
+Subject: no success acknowledgements on a connection without multiplexing
+
+rsync_uploader_ack_complete() sends IT_SUCCESS for finished files. When
+the client is the receiver (a pull, over ssh or rsync://), its writes are
+not multiplexed and io_write_buf_tagged() asserts iotag == IT_DATA, so a
+pull aborted after its first finished file (NOTES N6). Seen on VMS; the
+code path is not VMS-specific. Skip the acknowledgements there.
+
+--- a/uploader.c	2026-11-06 15:13:50.846898784 +0000
++++ b/uploader.c	2026-11-06 15:13:50.867162981 +0000
+@@ -1865,6 +1865,15 @@
+ 		return;
+ 
+ 	/*
++	 * Acknowledgements are tagged messages, which the io layer
++	 * allows only on a multiplexed connection: a client receiving
++	 * from a remote sender (a pull) writes without multiplexing,
++	 * and asserted here after its first finished file.
++	 */
++	if (!sess->mplex_writes)
++		return;
++
++	/*
+ 	 * We'll halt at the next file the uploader needs to process
+ 	 * since the status of flist entries after that are irrelevant.
+ 	 */

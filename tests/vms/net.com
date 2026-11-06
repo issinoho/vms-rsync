@@ -82,7 +82,8 @@ $ define/user sys$error [.nt]'p1'.err
 $ rsync 'p2'
 $ st = $status
 $ say "NET: ", p1, " status ", st
-$ type [.nt]'p1'.out,[.nt]'p1'.err
+$! every version: rsync's child may write its own version of the stderr file
+$ type [.nt]'p1'.out;*,[.nt]'p1'.err;*
 $ endsubroutine
 $!
 $! NETMD5 <tree> <relative path> <md5> for every file under nt/<p2> (md5tree.c)
