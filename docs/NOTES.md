@@ -290,3 +290,59 @@ pushed all 6.
   `DEFINE/USER SYS$ERROR`: the tests type `;*`.
 - DCL's `*.*` does not match a name with no name part: the cleanups delete
   `.*` too.
+
+## N7. Phase 3: VMS text files, versions and names, 2026-11-06 (tools/local.sh, tools/net.sh)
+
+**Text files (D3, D3a).**
+- **A text record file** (variable-length or VFC records with carriage control:
+  `st_fab_rfm` 2 or 3, `st_fab_rat` CR, PRN or FTN, all in the standard
+  `struct stat`) is its LF lines, the bytes the C RTL's `read()` gives.
+- **Sizes:** its size is that count. The sender's file list takes it from
+  `flist_copy_stat` (patch 0012), the receiver's quick check from the shim's
+  `fstatat`. Counts are cached by file and date.
+- **Contents:** a read through the shim opens a copy of those bytes in
+  `SYS$SCRATCH`, delete-on-close, with the file's dates, so `read`, `pread`
+  (the receiver's block sums), `mmap` (the sender) and `fstat` all agree.
+- **Two surprises, found with `probes/probe_lfview.c`:**
+  - **A new file's header size stays 0 while it is open.** `fstat` said 0, and
+    the sender sent the wrong bytes. The copy is now closed and opened again.
+  - **A zero-length `write()` makes no record,** so empty lines were lost.
+    `fopen("w", "rfm=var")` was worse: it wrote one record per character.
+    Records are now written with RMS (`$CREATE` with NAML, one `$PUT` per line).
+- **On arrival:** a file whose type is in `RSYNC$TEXT_TYPES` (VFTP's list by
+  default) is rewritten as variable-length records when it is closed; the
+  stream version is deleted.
+  - It stays a stream file if it does not end with a newline, or a line is over
+    32,767 bytes (D3a).
+- **Other files** go byte for byte and arrive as stream files: FIX 512 binary,
+  and VAR of a type not in the list.
+
+**Versions (D4) and names (D5).**
+- **`--keep-versions=N`** (patch 0013) reaches the receiver as
+  `RSYNC_KEEP_VERSIONS` in the environment. After a file is updated and closed,
+  versions beyond the newest N are deleted (`name;-N` until none is left).
+- **`unlink()` deletes only the newest version:** a deleted file seemed to come
+  back as the one before. `unlinkat` now deletes every version.
+- **Operands** with a directory in brackets, or `name:` where name is a device or
+  logical name here, become paths (`decc$translate_vms`). A directory means its
+  contents.
+- **Names that differ only in case** are one file on VMS. A second one in a run is
+  left out with a message.
+  - Refusing its rename made openrsync give up the whole transfer (exit 12, and
+    VSI ssh crashed as its connection went).
+  - So the data is dropped at close, the transfer goes on, and the exit status is
+    23 (patch 0014).
+- `vms` is a predefined macro in VSI C: not a variable name.
+
+**Tests.** `tools/local.sh` and `tools/net.sh` both pass on x86.
+- **The local tree:** VAR text of a text type and of another type, FIX binary,
+  a file with empty lines, `README`, `.profile`, stream text and binary.
+  - Every file identical: by MD5, or by lines where the format changes by design.
+  - The second run sends 0 files; the delta is 700 bytes.
+  - `--keep-versions=2`: 4 versions to 2. `--delete`: 2 versions to 0.
+  - A copy by VMS specifications (`[.LT.SRC]` to `[.LT.DST2]`) is identical.
+- **Network:** the tree pushed to Linux is LF lines identical to the node's view.
+  - Pulled back, every file is identical, and the record formats are VAR for the
+    text types and STMLF for the rest.
+  - `Readme.TXT` and `README.txt`: one written, status 23.
+  - The Phase 2 checks all still pass.

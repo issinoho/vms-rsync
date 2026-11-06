@@ -38,6 +38,13 @@ Phase 0 exit review, 2026-11-05.
 - Received: a type in `RSYNC$TEXT_TYPES` (VFTP's list by default) is written as VAR
   records; anything else as STREAM_LF, byte-exact.
 
+## D3a. Text files that would not read back the same stay stream files (Phase 3)
+- A received file of a text type is written as variable-length records only if
+  it ends with a newline and no line is longer than 32,767 bytes.
+- Otherwise reading it back would not give the same bytes: the last line would
+  gain a newline, or a record would split. Every run would then send it again.
+  These files stay stream files, which VMS tools read as text too.
+
 ## D4. Versions: a new version per update (user's choice, 2026-11-03)
 - `rename()` over the name already makes a new version (N1 probe 4).
 - `--keep-versions=N` purges beyond N after a good update.
