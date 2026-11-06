@@ -220,7 +220,7 @@ a 300 KB binary, an empty file and two levels of subdirectory:
   all identical.
 - Each update is a new version (D4), as probe 4 predicted.
 
-## N6. Phase 2: the network, x86, 2026-11-06 (tools/net.sh, run by the user)
+## N6. Phase 2: the network, x86 and IA64, 2026-11-06 (tools/net.sh, run by the user)
 
 **Method.**
 - `tools/net.sh` starts a private sshd and an rsync 3.4.1 daemon on the Linux
@@ -234,7 +234,10 @@ a 300 KB binary, an empty file and two levels of subdirectory:
   compat MD5.
 - Five runs found the problems below. The sixth passed everything.
 
-**Result (sixth run, x86): every check exact, both ways.**
+**Result (sixth run on x86, second on IA64; identical): every check exact, both
+ways.** IA64's first run pushed 4 files, not 6: net.com used an older `mkfiles` on
+the node, from before README and .profile. net.com now builds it, and the rerun
+pushed all 6.
 - **ssh push:** plain, again (**0 files**), a delta after a change (**700 bytes
   sent, 299,300 matched**), `-n --delete` (listed, nothing deleted), `--delete`
   (deleted), `-c` (0 files), `--partial --progress`. Linux has exactly the

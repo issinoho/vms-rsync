@@ -173,6 +173,16 @@ None of them is a blocker on what is known now. Each gets a probe in Phase 0.
   openrsync, for push and pull.
 - Exercise `--delete`, `-n`, `-c`, `-z`, `--partial`, `--progress` and `--link-dest`.
 - **Exit:** a scripted interop matrix passes on both nodes (`tools/live.sh`, as VFTP's).
+- **Status 2026-11-06:** `tools/net.sh` passes on both nodes against Linux rsync
+  3.4.1, every file checked by MD5 (NOTES N6):
+  - over ssh, push and pull with again (0 files), delta, `--delete` (with `-n`
+    first), `-c`, `-z`, `--partial --progress` and `--link-dest`;
+  - over rsync://, pull and again; a push is refused.
+  - Four more patches (0008-0011), two of them upstream bugs that affect every
+    system.
+  - Not covered: openrsync as the Linux server (only rsync 3.4.1); daemon
+    authentication and rsync:// push (openrsync has neither); messages under an
+    ssh command (stderr); `--progress` was run but not checked.
 
 **Phase 3: VMS semantics.**
 - The file view layer (D3), new versions and `--keep-versions` (D4), VMS specs and
