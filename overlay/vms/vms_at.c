@@ -41,6 +41,7 @@ static void track_write(int, const char *);
 static void track_rename(const char *, const char *);
 static void track_times(const char *, const struct timespec [2]);
 static void restore_times(const char *);
+static void remember_times(const char *, const struct timespec [2]);
 static int settimes(const char *, const struct timespec [2]);
 
 #define MAXDIRS 256
@@ -226,11 +227,37 @@ ssize_t readlinkat(int dfd, const char *name, char *out, size_t sz)
     return p ? readlink(p, out, sz) : -1;
 }
 
+/* No hard links on VMS (D6): a link is made as a copy, with the source's
+   protection and times, so --link-dest gives what --copy-dest would, and -H
+   copies (NOTES N6). */
 int linkat(int fdfd, const char *from, int tdfd, const char *to, int flag)
 {
-    (void) fdfd; (void) from; (void) tdfd; (void) to; (void) flag;
-    errno = ENOTSUP;                              /* no hard links (D6) */
-    return -1;
+    static char buf[32768];
+    char b1[PATH_MAX], b2[PATH_MAX];
+    const char *p1 = join(fdfd, from, b1, sizeof b1), *p2 = join(tdfd, to, b2, sizeof b2);
+    struct stat st;
+    struct timespec ts[2];
+    long n;
+    int in, out, rc = 0;
+    (void) flag;
+    if (!p1 || !p2) return -1;
+    if (stat(p1, &st) == -1) return -1;
+    if ((in = open(p1, O_RDONLY)) == -1) return -1;
+    if ((out = open(p2, O_WRONLY | O_CREAT | O_EXCL, st.st_mode & 07777)) == -1) { close(in); return -1; }
+    while ((n = read(in, buf, sizeof buf)) > 0)
+        if (write(out, buf, (size_t) n) != n) { rc = -1; break; }
+    if (n < 0) rc = -1;
+    close(in);
+    if (close(out) == -1) rc = -1;
+    if (rc == 0) {
+        ts[0].tv_sec = st.st_atime; ts[0].tv_nsec = 0;
+        ts[1].tv_sec = st.st_mtime; ts[1].tv_nsec = 0;
+        (void) chmod(p2, st.st_mode & 07777);
+        settimes(p2, ts);                         /* after chmod: it sets the date */
+        remember_times(p2, ts);
+    }
+    tr("link by copy", p2, rc);
+    return rc;
 }
 
 int fchmodat(int dfd, const char *name, mode_t mode, int flag)

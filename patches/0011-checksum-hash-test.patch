@@ -1,0 +1,18 @@
+Subject: --checksum: a hash that succeeds is not an error
+
+hash_file_by_path() returns true on success; this caller took true as
+failure, so with -c every regular file met in a directory walk was
+reported ("hash_file_by_path: error 0") and left out (NOTES N6). The
+other caller (flist.c, single files) tests !rc. Not VMS-specific.
+
+--- a/flist.c	2026-11-06 15:31:05.567865161 +0000
++++ b/flist.c	2026-11-06 15:31:05.587892492 +0000
+@@ -1985,7 +1985,7 @@
+ 		if (sess->opts->checksum && S_ISREG(f->st.mode)) {
+ 			rc = hash_file_by_path(AT_FDCWD, f->path,
+ 			    f->st.size, f->md);
+-			if (rc) {
++			if (!rc) {
+ 				ERR("%s: hash_file_by_path", f->path);
+ 				sess->total_errors++;
+ 				fl_pop(fl);
