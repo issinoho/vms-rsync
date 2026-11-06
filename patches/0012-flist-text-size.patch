@@ -1,0 +1,24 @@
+Subject: the file list gives a VMS text file's size as LF lines
+
+A VMS text record file (variable-length or VFC records with carriage
+control) is sent as its LF lines (D3), whose size is not its size on
+disk. flist_copy_stat() is where every file list entry takes its size.
+
+--- a/flist.c	2026-11-06 19:47:33.183901476 +0000
++++ b/flist.c	2026-11-06 19:47:33.247110870 +0000
+@@ -288,7 +288,15 @@
+ 	f->st.mode = st->st_mode;
+ 	f->st.uid = st->st_uid;
+ 	f->st.gid = st->st_gid;
++#ifdef __VMS
++	/*
++	 * A VMS text record file goes as its LF lines, which is not the
++	 * size on disk (vms/vms_at.c).
++	 */
++	f->st.size = f->path != NULL ? vms_lf_size(f->path, st) : st->st_size;
++#else
+ 	f->st.size = st->st_size;
++#endif
+ 	f->st.mtime = st->st_mtime;
+ 	f->st.rdev = st->st_rdev;
+ 	f->st.device = st->st_dev;

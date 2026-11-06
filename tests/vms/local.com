@@ -47,10 +47,24 @@ $ d = f$extract(0, i, f) + ".LT.DST" + f$extract(i + 7, 999, f)
 $ d = f$element(0, ";", d)
 $ a = "(none)"
 $ b = "(none)"
+$ ra = f$file_attributes(f, "RFM")
+$ rb = "(none)"
+$ if f$search(d) .nes. "" then rb = f$file_attributes(d, "RFM")
+$ if ra .nes. "STMLF" .or. rb .nes. "STMLF" then -
+     say "LOCAL: FORMAT ", f$parse(f,,,"NAME"), f$parse(f,,,"TYPE"), " ", ra, " -> ", rb
+$ if ra .eqs. rb .or. rb .eqs. "(none)" then goto by_md5
+$! different record formats (D3): the same lines?
+$ define/user sys$output nla0:
+$ differences 'f' 'd'
+$ if $status then a = "same lines"
+$ b = a
+$ goto compared
+$by_md5:
 $ checksum/algorithm=md5 'f'
 $ if $status then a = checksum$checksum
 $ checksum/algorithm=md5 'd'
 $ if $status then b = checksum$checksum
+$compared:
 $ n = n + 1
 $ if a .nes. b .or. b .eqs. "(none)"
 $ then

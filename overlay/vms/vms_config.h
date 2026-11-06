@@ -119,6 +119,11 @@ int tcsetattr(int, int, const struct termios *);
 #define IFTODT(mode) (((mode) & 0170000) >> 12)
 #endif
 
+/* VMS text files (D3): a text record file's size as LF lines (vms_at.c;
+   flist_copy_stat, patch 0012). */
+int vms_text_record(const struct stat *);
+off_t vms_lf_size(const char *, const struct stat *);
+
 /* The child process for the remote shell or a local --server (patch 0002). */
 int vms_spawn(char *const *, int, const char *);
 int vms_child_status(int, char *const *);

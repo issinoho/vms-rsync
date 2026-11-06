@@ -19,6 +19,9 @@
 #include <unistd.h>
 #include <utime.h>
 #include <unixio.h>
+#include <ctype.h>
+#include <rms.h>
+#include <starlet.h>
 
 #include "vms_config.h"
 #undef open                         /* from here on, the C RTL's open() and close() */
@@ -36,7 +39,7 @@ static void tr(const char *fn, const char *p, long rc)
 
 /* Files opened for writing (see vms_close()). */
 #define MAXW 64
-static struct { int fd; char *path; int have; struct timespec ts[2]; char *copy_to; } wf[MAXW];
+static struct { int fd; char *path; int have; struct timespec ts[2]; char *copy_to; int renamed; } wf[MAXW];
 static void track_write(int, const char *);
 static void track_rename(const char *, const char *);
 static void track_times(const char *, const struct timespec [2]);
@@ -98,14 +101,184 @@ static const char *join(int dfd, const char *name, char *buf, size_t sz)
     return buf;
 }
 
+/* ---- VMS text files (D3, NOTES N7) ----------------------------------------
+   A text record file (variable-length or VFC records with carriage control) is
+   presented as its LF lines: the bytes the C RTL's read() gives, one line per
+   record. stat sizes say so (fstatat here; the sender's file list, patch 0012)
+   and a read opens a delete-on-close stream copy of those bytes, so read,
+   pread, mmap and fstat all agree. A received file whose type is a text type
+   becomes variable-length records again when it is closed. */
+#define FAB_C_VAR 2
+#define FAB_C_VFC 3
+#define FAB_M_FTN 1
+#define FAB_M_CR  2
+#define FAB_M_PRN 4
+
+int vms_text_record(const struct stat *st)
+{
+    return S_ISREG(st->st_mode) && (st->st_fab_rfm == FAB_C_VAR || st->st_fab_rfm == FAB_C_VFC) &&
+           (st->st_fab_rat & (FAB_M_FTN | FAB_M_CR | FAB_M_PRN));
+}
+
+/* LF sizes already counted, by file identity and date. */
+#define MAXLF 512
+static struct { dev_t dev; ino_t ino; time_t mtime; off_t raw, lf; } lfc[MAXLF];
+static int lfc_next;
+
+static off_t count_lf(const char *p)
+{
+    static char buf[32768];
+    off_t n = 0;
+    long r;
+    int fd = open(p, O_RDONLY);
+    if (fd < 0) return -1;
+    while ((r = read(fd, buf, sizeof buf)) > 0) n += r;
+    close(fd);
+    return r < 0 ? -1 : n;
+}
+
+/* The size of path as rsync sees it: its LF size for a text record file. */
+off_t vms_lf_size(const char *p, const struct stat *st)
+{
+    int i;
+    off_t n;
+    if (!vms_text_record(st)) return st->st_size;
+    for (i = 0; i < MAXLF; i++)
+        if (lfc[i].ino == st->st_ino && lfc[i].dev == st->st_dev && lfc[i].mtime == st->st_mtime &&
+            lfc[i].raw == st->st_size)
+            return lfc[i].lf;
+    if ((n = count_lf(p)) < 0) return st->st_size;
+    lfc[lfc_next].dev = st->st_dev; lfc[lfc_next].ino = st->st_ino;
+    lfc[lfc_next].mtime = st->st_mtime; lfc[lfc_next].raw = st->st_size; lfc[lfc_next].lf = n;
+    lfc_next = (lfc_next + 1) % MAXLF;
+    if (trace > 0) fprintf(stderr, "vms_at: %s is text: %ld bytes as LF lines\n", p, (long) n);
+    return n;
+}
+
+/* A delete-on-close stream file holding p's LF lines, with p's dates. */
+static int lf_view(const char *p, const struct stat *st)
+{
+    static int seq;
+    static char buf[32768];
+    char tmp[64];
+    struct timespec ts[2];
+    long r;
+    int in, out;
+    sprintf(tmp, "SYS$SCRATCH:RSYNC_%08X_%d.TMP", (unsigned) getpid(), ++seq);
+    if ((in = open(p, O_RDONLY)) < 0) return -1;
+    if ((out = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0600)) < 0) { close(in); return -1; }
+    while ((r = read(in, buf, sizeof buf)) > 0)
+        if (write(out, buf, (size_t) r) != r) { r = -1; break; }
+    close(in);
+    /* closed and opened again: while a new file is open, its size in the
+       header (fstat, mmap) is 0 until the close (NOTES N7) */
+    if (close(out) == -1 || r < 0) { remove(tmp); return -1; }
+    ts[0].tv_sec = st->st_atime; ts[0].tv_nsec = 0;
+    ts[1].tv_sec = st->st_mtime; ts[1].tv_nsec = 0;
+    settimes(tmp, ts);
+    if ((out = open(tmp, O_RDONLY, 0, "fop=dlt")) < 0) { remove(tmp); return -1; }
+    tr("text, read as LF lines", p, out);
+    return out;
+}
+
+/* The text types (RSYNC$TEXT_TYPES, else VFTP's list): a received file of one
+   of these types is written as variable-length records. */
+static const char *default_types =
+    ".TXT .C .H .CC .CPP .HPP .COM .MMS .MAR .FOR .F .F90 .PAS .BAS .COB .PL .PY .SH "
+    ".HTML .HTM .CSS .JS .JSON .XML .YAML .YML .MD .RST .CSV .TSV .INI .CONF .CFG .LOG "
+    ".LIS .MAP .OPT .SQL .DIFF .PATCH .MAK .AWK .SED .TEX .LIST .README .PEM .PUB";
+
+static int text_type(const char *path)
+{
+    const char *base = strrchr(path, '/'), *dot, *list = getenv("RSYNC$TEXT_TYPES"), *q;
+    size_t n;
+    base = base ? base + 1 : path;
+    if ((dot = strrchr(base, '.')) == NULL || dot == base || dot[1] == '\0') return 0;
+    if (list == NULL) list = default_types;
+    n = strlen(dot);
+    for (q = list; (q = strchr(q, '.')) != NULL; q++) {
+        size_t i;
+        for (i = 0; i < n && q[i] && toupper((unsigned char) q[i]) == toupper((unsigned char) dot[i]); i++) ;
+        if (i == n && (q[n] == '\0' || q[n] == ' ' || q[n] == ',')) return 1;
+    }
+    return 0;
+}
+
+/* Rewrite a just-received stream file of a text type as variable-length records
+   (a new version; the stream version is deleted). Left as it is, and said so
+   with the trace, if it does not end with a newline or has a line too long
+   for a record: reading it back would not give the same bytes. */
+static int to_records(const char *path)
+{
+    static char data[32768], line[32768];
+    char old[PATH_MAX];
+    struct stat st;
+    long r, i, len = 0;
+    int in, last_nl = 1, ok = 1;
+    if (!text_type(path) || stat(path, &st) == -1 || !S_ISREG(st.st_mode) || vms_text_record(&st)) return 0;
+    if ((in = open(path, O_RDONLY)) < 0) return -1;
+    while ((r = read(in, data, sizeof data)) > 0)          /* pass 1: will it fit? */
+        for (i = 0; i < r; i++) {
+            if (data[i] == '\n') len = 0;
+            else if (++len > 32767) ok = 0;
+            last_nl = data[i] == '\n';
+        }
+    if (!ok || !last_nl || st.st_size == 0) {
+        close(in);
+        tr(ok ? "text type, kept as a stream (no final newline)" : "text type, kept as a stream (a line too long)", path, 0);
+        return 0;
+    }
+    if (getname(in, old, 1) == NULL) { close(in); return -1; }
+    lseek(in, 0, SEEK_SET);
+    /* pass 2: one RMS $PUT per line. A zero-length write() makes no record
+       (empty lines were lost), and stdio on a variable-length file wrote one
+       record per character (NOTES N7). */
+    {
+        struct FAB fab = cc$rms_fab;
+        struct RAB rab = cc$rms_rab;
+        struct NAML naml = cc$rms_naml;
+        char name[PATH_MAX], *semi;
+        unsigned int sts;
+        strcpy(name, old);
+        if ((semi = strrchr(name, ';')) != NULL) *semi = '\0';   /* a new version */
+        fab.fab$l_naml = &naml;
+        fab.fab$l_fna = (char *) -1; fab.fab$b_fns = 0;
+        naml.naml$l_long_filename = name;
+        naml.naml$l_long_filename_size = strlen(name);
+        fab.fab$b_rfm = FAB$C_VAR; fab.fab$b_rat = FAB$M_CR; fab.fab$b_fac = FAB$M_PUT;
+        sts = sys$create(&fab);
+        if (!(sts & 1)) { close(in); errno = EVMSERR; vaxc$errno = sts; return -1; }
+        rab.rab$l_fab = &fab;
+        if (!((sts = sys$connect(&rab)) & 1)) ok = 0;
+        len = 0;
+        while (ok && (r = read(in, data, sizeof data)) > 0)
+            for (i = 0; i < r && ok; i++) {
+                if (data[i] != '\n') { line[len++] = data[i]; continue; }
+                rab.rab$l_rbf = line; rab.rab$w_rsz = (unsigned short) len;
+                if (!((sts = sys$put(&rab)) & 1)) ok = 0;
+                len = 0;
+            }
+        close(in);
+        sys$disconnect(&rab);
+        if (!(sys$close(&fab) & 1)) ok = 0;
+        if (!ok) { tr("to records failed", path, -1); return -1; }
+    }
+    (void) chmod(path, st.st_mode & 07777);
+    remove(old);                                           /* the stream version */
+    tr("written as records", path, 0);
+    return 0;
+}
+
 static int openpath(const char *p, int flags, mode_t mode)
 {
     struct stat st;
     int fd;
     if (flags & O_DIRECTORY) return opendirfd(p);
     if ((flags & O_NOFOLLOW) && lstat(p, &st) == 0 && S_ISLNK(st.st_mode)) { errno = ELOOP; return -1; }
-    if (!(flags & (O_CREAT | O_WRONLY | O_RDWR)) && stat(p, &st) == 0 && S_ISDIR(st.st_mode))
-        return opendirfd(p);
+    if (!(flags & (O_CREAT | O_WRONLY | O_RDWR)) && stat(p, &st) == 0) {
+        if (S_ISDIR(st.st_mode)) return opendirfd(p);
+        if (vms_text_record(&st)) return lf_view(p, &st);
+    }
     fd = open(p, flags & ~(O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC), mode);
     tr("open", p, fd);
     if (fd >= 0 && (flags & (O_WRONLY | O_RDWR | O_CREAT))) track_write(fd, p);
@@ -135,8 +308,11 @@ int fstatat(int dfd, const char *name, struct stat *st, int flag)
 {
     char buf[PATH_MAX];
     const char *p = join(dfd, name, buf, sizeof buf);
+    int rc;
     if (p == NULL) return -1;
-    return (flag & AT_SYMLINK_NOFOLLOW) ? lstat(p, st) : stat(p, st);
+    rc = (flag & AT_SYMLINK_NOFOLLOW) ? lstat(p, st) : stat(p, st);
+    if (rc == 0 && vms_text_record(st)) st->st_size = vms_lf_size(p, st);
+    return rc;
 }
 
 int mkdirat(int dfd, const char *name, mode_t mode)
@@ -328,7 +504,7 @@ static void track_write(int fd, const char *p)
         if (wf[i].path && wf[i].fd == fd) { free(wf[i].path); wf[i].path = NULL; }
     for (i = 0; i < MAXW; i++)
         if (!wf[i].path) {
-            if ((wf[i].path = strdup(p)) != NULL) { wf[i].fd = fd; wf[i].have = 0; wf[i].copy_to = NULL; }
+            if ((wf[i].path = strdup(p)) != NULL) { wf[i].fd = fd; wf[i].have = 0; wf[i].copy_to = NULL; wf[i].renamed = 0; }
             return;
         }
 }
@@ -339,7 +515,7 @@ static void track_rename(const char *from, const char *to)
     for (i = 0; i < MAXW; i++)
         if (wf[i].path && !strcmp(wf[i].path, from)) {
             char *n = strdup(to);
-            if (n) { free(wf[i].path); wf[i].path = n; }
+            if (n) { free(wf[i].path); wf[i].path = n; wf[i].renamed = 1; }
         }
 }
 
@@ -412,7 +588,7 @@ int vms_close(int fd)
                 tr("close: copied to", wf[i].copy_to, r);
                 if (r == -1) { rc = -1; e = errno; }
                 now = wf[i].copy_to;
-            }
+            } else if (wf[i].renamed && to_records(now) == -1) { rc = -1; e = errno; }
             if (wf[i].have) {
                 if (trace > 0) fprintf(stderr, "vms_at: close(%d) sets the times again\n", fd);
                 settimes(now, wf[i].ts);
