@@ -334,7 +334,21 @@ pushed all 6.
     23 (patch 0014).
 - `vms` is a predefined macro in VSI C: not a variable name.
 
-**Tests.** `tools/local.sh` and `tools/net.sh` both pass on x86.
+**Attributes (D6).** From a Linux tree with modes 640, 755, 600 and a 750
+directory, two symlinks (one dangling) and a fifo, pulled with `-a`:
+- **Modes** read back exactly; 640 is protection `S:RWD, O:RWD, G:R, W:`, 755
+  `S:RWED, O:RWED, G:RE, W:RE`.
+- **Symlinks** arrive as symlinks with their targets. rsync sets a link's own
+  date and mode, which VMS cannot do: `utime()` and `chmod()` go through the
+  link, which failed for the dangling one and would have changed the target
+  of the other. Asked not to follow a link, the shim now does nothing.
+- **Owners:** `-a` asks for the group, which would set a Linux gid as the UIC
+  group. `fchownat` now does nothing, so files belong to the user.
+- **The fifo** fails in `mkfifoat`; the rest goes on, status 23.
+- **`-H`** is refused before anything is sent (patch 0015).
+- Pushed back to Linux, the tree is the same as the original (modes and links).
+
+**Tests.** `tools/local.sh` and `tools/net.sh` pass on x86 and IA64.
 - **The local tree:** VAR text of a text type and of another type, FIX binary,
   a file with empty lines, `README`, `.profile`, stream text and binary.
   - Every file identical: by MD5, or by lines where the format changes by design.

@@ -191,6 +191,18 @@ None of them is a blocker on what is known now. Each gets a probe in Phase 0.
 - Round trip VMS → Linux → VMS: VAR text comes back as VAR with the same records.
   Binary and stream files are byte-exact. Versions accumulate and purge as specified.
 - **Exit:** that matrix passes on both nodes.
+- **Status 2026-11-06:** `tools/local.sh` and `tools/net.sh` pass on both nodes
+  (NOTES N7):
+  - VMS → Linux → VMS: VAR text goes as LF lines and comes back as VAR records;
+    FIX, stream and binary byte for byte.
+  - `--keep-versions` purges; `--delete` removes every version; VMS specs work as
+    operands; a case clash leaves one file and status 23.
+  - Attributes from Linux and back: modes, symlinks (and a dangling one), owner
+    = the user; a fifo left out (status 23); `-H` refused.
+  - Three more patches (0013-0015).
+  - Not covered: a VMS sender's own symlinks and protection other than by
+    mode; text files over 32,767-byte lines in a round trip (D3a keeps them
+    stream); large trees for speed.
 
 **Phase 4: kit and release.**
 - PCSI kits:
