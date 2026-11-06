@@ -214,8 +214,10 @@ None of them is a blocker on what is known now. Each gets a probe in Phase 0.
   SYSTARTUP/SYLOGIN in vms-site-config.
 - **Status 2026-11-06:** kits for both architectures pass `tools/installcheck.sh`
   (NOTES N8). Found on the way: failures had success severity under DCL (fixed,
-  patch 0016). Banner and README done; the release, the site entry and
-  vms-site-config to come.
+  patch 0016). Banner and README done.
+- Released 2026-11-06 as v20260730-vms1 (both kits and SHA256SUMS), and on the site
+  (vms-grep 0267a37). Still to do: installing it on the nodes, with SYSTARTUP and
+  SYLOGIN in vms-site-config.
 
 **Later:** VMS as server: `rsync --server` under VSI sshd if probe 9 passes; otherwise
 a daemon as an auxiliary server, with `@RSYNCD:` greeting and modules.
