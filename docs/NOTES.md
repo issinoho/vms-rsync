@@ -219,3 +219,71 @@ a 300 KB binary, an empty file and two levels of subdirectory:
   whole-file by default, as rsync's): 1 file, **700 bytes sent, 299,300 matched**,
   all identical.
 - Each update is a new version (D4), as probe 4 predicted.
+
+## N6. Phase 2: the network, x86, 2026-11-06 (tools/net.sh, run by the user)
+
+**Method.**
+- `tools/net.sh` starts a private sshd and an rsync 3.4.1 daemon on the Linux
+  machine (`tools/net_servers.sh`):
+  - a fresh test key, accepted only from the nodes;
+  - a gate (`tools/net_gate.sh`) that runs only `rsync --server` inside
+    `out/net`, plus two fixed exit-status commands.
+- It then runs `tests/vms/net.com` on the node and compares every file by MD5.
+  VMS `CHECKSUM` and Linux `md5sum` agree byte for byte on stream files.
+  `tests/vms/md5tree.c` lists the node's trees with `readdir` and openrsync's
+  compat MD5.
+- Five runs found the problems below. The sixth passed everything.
+
+**Result (sixth run, x86): every check exact, both ways.**
+- **ssh push:** plain, again (**0 files**), a delta after a change (**700 bytes
+  sent, 299,300 matched**), `-n --delete` (listed, nothing deleted), `--delete`
+  (deleted), `-c` (0 files), `--partial --progress`. Linux has exactly the
+  node's 6 files.
+- **ssh pull:** plain, again (0 files), `-z`, and `--link-dest`. The node has
+  exactly Linux's 8 files, including a dot file, a name with a space and mixed
+  case.
+- **rsync:// pull,** again (0 files); a push is refused with a message.
+- Every step exits 1 (success), except the refused push.
+
+**Found and fixed.**
+1. **openrsync can only pull from an rsync:// daemon:** a push asserts (on every
+   system). Patch 0008 makes it an error message.
+2. **openrsync has no daemon authentication** (no `@RSYNCD: AUTHREQD`): only
+   anonymous modules. So readpassphrase's echo (N5) does not arise.
+3. **VSI ssh's exit status** is a VMS status, `%X0764D01B` for a remote 0 and
+   `%X0764D07B` for a remote 1 (recorded with `ssh -n` and the gate's
+   exit-status commands). `waitpid()` keeps the low byte, 27 or 123. Patch 0009
+   (`vms_child_status`) reads 27 as success. Before it, every ssh transfer
+   ended as a failure.
+4. **VSI ssh crashed** (ACCVIO, address 0xC) writing a stream of data to a
+   non-blocking stdout. openrsync makes both socketpair ends non-blocking, so
+   pulls died after the first block. `vms_spawn` gives the child a blocking end.
+5. **rename() fills fields missing from the new name from the old one** (RMS
+   defaults): `.hidden` from `..hidden.XXXXXX` became `..hidden.hidden`, and a
+   type-less name would take the temp file's type.
+   - `renameat` gives a type-less target an explicit empty type (`README.`).
+   - A target with no name part (`.hidden`) is reached by copying. openrsync
+     renames before it closes, and an open file cannot be deleted, so the copy
+     happens in `vms_close`.
+   - The local test's tree now has `README` and `.profile`.
+6. **Pulls aborted after the first finished file:** the receiver acknowledged
+   files with tagged messages (`IT_SUCCESS`), which openrsync's io layer forbids
+   on a connection that is not multiplexed, as a pulling client's is. Patch
+   0010; not VMS-specific.
+7. **`-c` dropped every file in a directory walk:** `flist.c` took
+   `hash_file_by_path()`'s true (success) as failure. Patch 0011; not
+   VMS-specific.
+8. **No hard links on VMS:** `--link-dest` left nothing, yet exited 0. `linkat()`
+   now copies with the source's protection and times, so `--link-dest` acts as
+   `--copy-dest` and `-H` copies.
+
+**Test harness lessons.**
+- Running VSI ssh directly with a remote command that waits for input hung the
+  test session until the 30-minute limit; the user stopped it. Use `ssh -n`.
+- A daemon's per-connection child outlived a run and kept net.sh's node lock
+  (inherited fd 9), blocking builds; stopped with the user's agreement. The
+  servers now start without fd 9, and stop cleans up by configuration name.
+- rsync's child writes its own version of the stderr file named by
+  `DEFINE/USER SYS$ERROR`: the tests type `;*`.
+- DCL's `*.*` does not match a name with no name part: the cleanups delete
+  `.*` too.
