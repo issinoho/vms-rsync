@@ -40,7 +40,10 @@ static void tr(const char *fn, const char *p, long rc)
 
 /* Files opened for writing (see vms_close()). */
 #define MAXW 64
-static struct { int fd; char *path; int have; struct timespec ts[2]; char *copy_to; int renamed; } wf[MAXW];
+static struct { int fd; char *path; int have; struct timespec ts[2]; char *copy_to; int renamed, discard; } wf[MAXW];
+
+/* Files this layer had to leave out: rsync's exit status is then 23 (patch 0014). */
+int vms_soft_errors;
 static void track_write(int, const char *);
 static void track_rename(const char *, const char *);
 static void track_times(const char *, const struct timespec [2]);
@@ -452,7 +455,17 @@ int renameat(int fdfd, const char *from, int tdfd, const char *to)
     const char *p1 = join(fdfd, from, b1, sizeof b1), *p2 = join(tdfd, to, b2, sizeof b2), *base;
     int rc;
     if (!p1 || !p2) return -1;
-    if (case_clash(p2)) return -1;
+    if (case_clash(p2)) {
+        /* Not an error to openrsync, which would give up the whole transfer:
+           the data received is dropped (when the file is closed, if it is
+           still open) and the exit status will be 23. */
+        int i, open_now = 0;
+        vms_soft_errors++;
+        for (i = 0; i < MAXW; i++)
+            if (wf[i].path && !strcmp(wf[i].path, p1)) { wf[i].discard = 1; open_now = 1; }
+        if (!open_now) remove(p1);
+        return 0;
+    }
     base = strrchr(p2, '/');
     base = base ? base + 1 : p2;
     if (base[0] == '.' && base[1] != '\0' && strcmp(base, "..") && strchr(base + 1, '.') == NULL) {
@@ -595,7 +608,7 @@ static void track_write(int fd, const char *p)
         if (wf[i].path && wf[i].fd == fd) { free(wf[i].path); wf[i].path = NULL; }
     for (i = 0; i < MAXW; i++)
         if (!wf[i].path) {
-            if ((wf[i].path = strdup(p)) != NULL) { wf[i].fd = fd; wf[i].have = 0; wf[i].copy_to = NULL; wf[i].renamed = 0; }
+            if ((wf[i].path = strdup(p)) != NULL) { wf[i].fd = fd; wf[i].have = 0; wf[i].copy_to = NULL; wf[i].renamed = 0; wf[i].discard = 0; }
             return;
         }
 }
@@ -674,6 +687,12 @@ int vms_close(int fd)
     for (i = 0; i < MAXW; i++)
         if (wf[i].path && wf[i].fd == fd) {
             const char *now = wf[i].path;
+            if (wf[i].discard) {                   /* left out (case_clash) */
+                remove(wf[i].path);
+                free(wf[i].path); free(wf[i].copy_to);
+                wf[i].path = wf[i].copy_to = NULL;
+                continue;
+            }
             if (wf[i].copy_to) {                   /* a rename to ".name" */
                 int r = copy_then_delete(wf[i].path, wf[i].copy_to);
                 tr("close: copied to", wf[i].copy_to, r);

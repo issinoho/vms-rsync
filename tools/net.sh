@@ -81,7 +81,7 @@ for t in ("pull", "pullz", "pull2"):
     check("ssh pull (%s): the node's tree = Linux lsrc/" % t, vmsview(t), ls, "vms", "linux")
 check("rsync:// pull: the node's dpull = Linux lsrc/", vmsview("dpull"), ls, "vms", "linux")
 # Phase 3
-check("pulled back: the node's back = its own tree (LF lines)", vmsview("back"), src, "back", "src")
+check("pulled back: the node's back = its tree as pushed (LF lines)", vmsview("back"), vmsview("src3"), "back", "src3")
 rfm = {}
 for line in open(out, errors="replace"):
     if line.startswith("NETRFM back "):
@@ -94,6 +94,10 @@ if bad: fails += 1
 case = vmsview("case")
 ok = len(case) == 1
 print("CHECK %-58s %s (%d files: %s)" % ("case: Readme.TXT and README.txt, one written", "ok" if ok else "FAILED", len(case), ", ".join(case)))
+if not ok: fails += 1
+st13 = [l.split()[-1] for l in open(out, errors="replace") if l.startswith("NET: S13 status")]
+ok = st13 == ["%X0035A0B9"]
+print("CHECK %-58s %s (%s)" % ("case: the transfer goes on, status 23 (partial)", "ok" if ok else "FAILED", st13))
 if not ok: fails += 1
 check("rsync:// push refused: nothing in Linux daemon/push/", linux(d + "/daemon/push"), {}, "linux", "none")
 sys.exit(1 if fails else 0)

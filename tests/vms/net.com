@@ -40,6 +40,7 @@ $ define/process RSYNC_VMS_TRACE 1
 $! Phase 3: the pushed tree pulled back (D3: records again for text types)
 $ call run s12 "-a --stats -e ""''e'"" ''r'/push/ nt/back/"
 $ call md5s "back" back
+$ call md5s "src3" src
 $ call rfms "back" back
 $! names that differ only in case: one written, the other refused (D5)
 $ call run s13 "-a -e ""''e'"" ''r'/lcase/ nt/case/"

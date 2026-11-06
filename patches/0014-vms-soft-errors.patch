@@ -1,0 +1,52 @@
+Subject: count files the VMS layer left out as a partial transfer
+
+When vms/vms_at.c has to leave a received file out (a name that differs
+from another only in case, which on VMS is the same file), it says so and
+the transfer goes on; the exit status is then 23, as for any file not
+transferred.
+
+--- a/client.c	2026-11-06 20:24:13.056127355 +0000
++++ b/client.c	2026-11-06 20:24:13.141880879 +0000
+@@ -230,7 +230,12 @@
+ 		assert((ssize_t)sess.total_deleted >= sess.opts->max_delete ||
+ 		    sess.opts->dry_run);
+ 		rc = ERR_DEL_LIMIT;
++#ifdef __VMS
++	/* files the VMS layer had to leave out (vms/vms_at.c) */
++	} else if (sess.total_errors > 0 || vms_soft_errors > 0)
++#else
+ 	} else if (sess.total_errors > 0)
++#endif
+ 		rc = ERR_PARTIAL;
+ out:
+ 	sess_cleanup(&sess);
+--- a/server.c	2026-11-06 20:24:13.068064902 +0000
++++ b/server.c	2026-11-06 20:24:13.142224679 +0000
+@@ -203,7 +203,12 @@
+ 		assert((ssize_t)sess.total_deleted >= sess.opts->max_delete ||
+ 		    sess.opts->dry_run);
+ 		rc = ERR_DEL_LIMIT;
++#ifdef __VMS
++	/* files the VMS layer had to leave out (vms/vms_at.c) */
++	} else if (sess.total_errors > 0 || vms_soft_errors > 0)
++#else
+ 	} else if (sess.total_errors > 0)
++#endif
+ 		rc = ERR_PARTIAL;
+ out:
+ 	sess_cleanup(&sess);
+--- a/socket.c	2026-11-06 20:24:13.080056040 +0000
++++ b/socket.c	2026-11-06 20:24:13.142652103 +0000
+@@ -544,7 +544,12 @@
+ 		assert((ssize_t)sess.total_deleted >= sess.opts->max_delete ||
+ 		    sess.opts->dry_run);
+ 		rc = ERR_DEL_LIMIT;
++#ifdef __VMS
++	/* files the VMS layer had to leave out (vms/vms_at.c) */
++	} else if (sess.total_errors > 0 || vms_soft_errors > 0)
++#else
+ 	} else if (sess.total_errors > 0)
++#endif
+ 		rc = ERR_PARTIAL;
+ 
+ out:
