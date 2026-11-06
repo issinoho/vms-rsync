@@ -1,0 +1,18 @@
+Subject: refuse -H on VMS
+
+VMS has no hard links that rsync could make: vms/vms_at.c makes linkat a
+copy, which serves --link-dest but would make -H quietly give copies. D6
+says -H is refused, so it is, before anything is sent.
+
+--- a/main.c
++++ b/main.c
+@@ -1241,6 +1241,9 @@
+ #ifdef __VMS
+ 	/* VMS specifications among the operands, as paths (D5). */
+ 	vms_operands(argc, argv);
++	/* -H would give copies here, not links (vms/vms_at.c linkat): D6 */
++	if (opts.hard_links)
++		errx(ERR_SYNTAX, "-H (--hard-links) is not supported on VMS");
+ #endif
+ 
+ 	if (argc < 2) {

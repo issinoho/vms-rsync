@@ -24,6 +24,9 @@ $libdone:
 $ cc/NAMES=(AS_IS,SHORTENED)/OBJECT=[.nt]md5tree.obj [.tests.vms]md5tree.c
 $ link/EXECUTABLE=[.nt]md5tree.exe [.nt]md5tree.obj,[.nt]rsynclib.olb/library,[.openrsync.vms.obj]vms_crtl_init.obj
 $ md5tree := $'f$parse("[.nt]md5tree.exe")'
+$ cc/OBJECT=[.nt]attrtree.obj [.tests.vms]attrtree.c
+$ link/EXECUTABLE=[.nt]attrtree.exe [.nt]attrtree.obj,[.openrsync.vms.obj]vms_crtl_init.obj
+$ attrtree := $'f$parse("[.nt]attrtree.exe")'
 $ key = f$parse("[.net]net_key.")
 $ set security/protection=(s:rwed,o:rwed,g,w) 'key'
 $ mk make nt/src
@@ -58,6 +61,16 @@ $ call md5s "pullz" pullz
 $ call run s10 "-a --partial --progress -e ""''e'"" nt/src/ ''r'/push2/"
 $ call run s11 "-a --stats --link-dest=../pull -e ""''e'"" ''r'/lsrc/ nt/pull2/"
 $ call md5s "pull2" pull2
+$! Phase 3, attributes (D6): modes, symlinks and a fifo from Linux, and owners
+$! (the fifo is left out, so status 23); then back to Linux; then -H refused
+$ call run s14 "-a -e ""''e'"" ''r'/lattr/ nt/attr/"
+$ attrtree attr nt/attr
+$ say "NETPRO r640.txt ", f$file_attributes("[.nt.attr]r640.txt", "PRO")
+$ say "NETPRO x755.sh ", f$file_attributes("[.nt.attr]x755.sh", "PRO")
+$ call run s15 "-a -e ""''e'"" nt/attr/ ''r'/push3/"
+$! quoted: DCL would make -aH -ah
+$ call run s16 """-aH"" -e ""''e'"" ''r'/lattr/ nt/attrh/"
+$ say "NET: S16 made nt/attrh: ", f$search("[.nt]attrh.dir") .nes. ""
 $!
 $! ---- over rsync://
 $ call run d1 "-a --stats ''d'/lsrc/ nt/dpull/"

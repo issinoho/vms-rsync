@@ -62,8 +62,13 @@ Phase 0 exit review, 2026-11-05.
 - `-p` maps to protection (probe 6), and rsync always sets protection after the
   rename (probe 4).
 - `-l` symlinks work (probe 10).
-- `-o`/`-g` are not supported (UICs).
-- `-H`, devices and specials are refused.
+- `-o`/`-g` are not supported (UICs). Another system's uid and gid mean nothing
+  here, and `-a` implies both, so they are ignored without a warning: a file
+  belongs to whoever ran rsync (`fchownat` does nothing).
+- `-H` is refused at the start (patch 0015): `linkat` makes a copy on VMS, which
+  is right for `--link-dest` but would quietly turn hard links into copies.
+- Devices and specials can't be made: each one is left out with a message, the
+  rest goes on, and the status is 23.
 
 ## D7. Safety
 - No in-place writes (`--inplace` refused).

@@ -540,30 +540,36 @@ int linkat(int fdfd, const char *from, int tdfd, const char *to, int flag)
     return rc;
 }
 
+/* A symlink's own mode and dates can't be set here: chmod() and utime() go
+   through the link to its target. Asked not to follow, they do nothing. */
+static int own_link(const char *p, int flag)
+{
+    struct stat st;
+    return (flag & AT_SYMLINK_NOFOLLOW) && lstat(p, &st) == 0 && S_ISLNK(st.st_mode);
+}
+
 int fchmodat(int dfd, const char *name, mode_t mode, int flag)
 {
     char buf[PATH_MAX];
     const char *p = join(dfd, name, buf, sizeof buf);
     int rc;
-    (void) flag;
     if (p == NULL) return -1;
+    if (own_link(p, flag)) { tr("chmod (a link: not done)", p, 0); return 0; }
     rc = chmod(p, mode);
     tr("chmod", p, rc);
     restore_times(p);
     return rc;
 }
 
+/* Owners are not kept (D6): another system's uid and gid are not UICs here,
+   and -a asks for -o -g. A file belongs to whoever ran rsync. */
 int fchownat(int dfd, const char *name, uid_t uid, gid_t gid, int flag)
 {
     char buf[PATH_MAX];
     const char *p = join(dfd, name, buf, sizeof buf);
-    int rc;
-    (void) flag;
-    if (p == NULL) return -1;
-    rc = chown(p, uid, gid);
-    tr("chown", p, rc);
-    restore_times(p);
-    return rc;
+    (void) flag; (void) uid; (void) gid;
+    tr("chown (not done)", p ? p : name, 0);
+    return p ? 0 : -1;
 }
 
 /* times[0] access, times[1] modification; UTIME_NOW and UTIME_OMIT as POSIX. */
@@ -587,9 +593,9 @@ int utimensat(int dfd, const char *name, const struct timespec ts[2], int flag)
 {
     char buf[PATH_MAX];
     const char *p = join(dfd, name, buf, sizeof buf);
-    (void) flag;
     tr("utimensat", p ? p : name, p ? 0 : -1);
     if (p == NULL) return -1;
+    if (own_link(p, flag)) { tr("utimensat (a link: not done)", p, 0); return 0; }
     track_times(p, ts);
     return settimes(p, ts);
 }

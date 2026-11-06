@@ -12,3 +12,4 @@
 0012-flist-text-size.patch
 0013-vms-versions-and-specs.patch
 0014-vms-soft-errors.patch
+0015-vms-refuse-hard-links.patch
