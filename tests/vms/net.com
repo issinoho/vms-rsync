@@ -7,6 +7,9 @@ $! [.NT] (made empty first, deleted at the end). Prints NET: and NETMD5 lines.
 $ set noon
 $ say = "write sys$output"
 $ rsync := $'f$parse("[.openrsync.vms]rsync.exe")'
+$! the test tree's maker, built here so it is always the current one
+$ cc/OBJECT=mkfiles.obj [.tests.vms]mkfiles.c
+$ link/EXECUTABLE=mkfiles.exe mkfiles.obj
 $ mk := $'f$parse("mkfiles.exe")'
 $ if f$search("nt.dir") .nes. "" then call wipe nt
 $ create/directory [.nt]
