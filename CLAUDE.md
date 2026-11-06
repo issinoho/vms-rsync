@@ -29,4 +29,5 @@ them before starting work. Work phase by phase, and stop and ask at each phase e
 ## Commits
 
 Commit in logical steps with messages that explain why, and record what was verified
-and how. Don't push unless the user asks; there is no GitHub repository yet.
+and how. Don't push unless the user asks. The repository is github.com/issinoho/vms-rsync
+(public): check every commit for node details before a push.
