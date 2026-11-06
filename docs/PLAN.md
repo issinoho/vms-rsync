@@ -212,6 +212,10 @@ None of them is a blocker on what is known now. Each gets a probe in Phase 0.
   - a README.VMS with the case-quoting note (`"-P"`, or `SET PROCESS/PARSE_STYLE=EXTENDED`).
 - The family release process: banner and badges, the release, the site entry, and
   SYSTARTUP/SYLOGIN in vms-site-config.
+- **Status 2026-11-06:** kits for both architectures pass `tools/installcheck.sh`
+  (NOTES N8). Found on the way: failures had success severity under DCL (fixed,
+  patch 0016). Banner and README done; the release, the site entry and
+  vms-site-config to come.
 
 **Later:** VMS as server: `rsync --server` under VSI sshd if probe 9 passes; otherwise
 a daemon as an auxiliary server, with `@RSYNCD:` greeting and modules.

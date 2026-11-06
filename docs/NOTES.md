@@ -360,3 +360,30 @@ directory, two symlinks (one dangling) and a fifo, pulled with `-a`:
     text types and STMLF for the rest.
   - `Readme.TXT` and `README.txt`: one written, status 23.
   - The Phase 2 checks all still pass.
+
+## N8. Phase 4: exit status and the kit, 2026-11-06 (tools/kit.sh, tools/installcheck.sh)
+
+**Exit status.**
+- **Built `/MAIN=POSIX_EXIT`, `exit(n)` leaves `%X0035A000 + n*8` with success
+  severity for every n but 1** (`probes/probe_exit.c`, x86: exit 1 gives
+  `%X1035A00A`, exit 23 `%X0035A0B9`). So DCL's `ON ERROR` passed a partial
+  transfer, a protocol error or a timeout.
+- `vms/vms_exit.c`, as vms-wget: under DCL a non-zero code N is `%X1035A002 + N*8`
+  (error, message suppressed). A GNV shell, and a `--server` child whose parent
+  decodes the status, keep the POSIX exit.
+- **The macro was not the problem** (`probes/probe_exitmacro.c`: it survives
+  `<stdlib.h>`). main's last line was `return`, which bypasses `exit()`: on VMS it
+  calls `exit()` (patch 0016).
+
+**The kit.** ISSINOHO RSYNC T0.1-1, kit version openrsync-20260730-vms1, no
+prerequisites. `tools/installcheck.sh` on x86 and IA64:
+- install and remove clean (no `RSYNC$ROOT`, no files, no startup procedure after);
+- `rsync --version` names the kit (patch 0017);
+- a local copy from the installed image, which starts its own image as the other
+  end: VAR records, the same lines; `.DAT` as STMLF, and as VAR with
+  `RSYNC$TEXT_TYPES ".DAT"`;
+- `--keep-versions=2` after three updates leaves two versions;
+- a failed run leaves `%X1035A0BA` (severity 2, code 23).
+
+`tools/local.sh` and `tools/net.sh` pass again on both nodes, partial transfers now
+`%X1035A0BA`.
