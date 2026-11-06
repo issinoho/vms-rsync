@@ -93,6 +93,9 @@ $ endsubroutine
 $!
 $wipe: subroutine
 $ set noon
+$! "*.*" does not match a name with no name part (".hidden"): ".*" does
+$ set security/protection=o:rwed [.'p1'...].*;*
+$ delete/nolog [.'p1'...].*;*
 $ set security/protection=o:rwed [.'p1'...]*.*;*
 $ i = 0
 $wl: i = i + 1

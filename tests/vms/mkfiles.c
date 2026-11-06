@@ -2,7 +2,8 @@
    stream-LF or byte files as fopen() makes them (text files of VMS record
    formats are Phase 3):
      mkfiles make <dir>     a.txt (10 KB of lines), empty.txt, bin.dat (300 KB
-                            of every byte value), sub/b.txt, sub/deeper/c.txt
+                            of every byte value), sub/b.txt, sub/deeper/c.txt,
+                            README (no type) and .profile (no name part)
      mkfiles change <dir>   rewrite 100 bytes in the middle of bin.dat in place */
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,6 +37,8 @@ int main(int argc, char **argv)
         sprintf(p, "%s/sub/b.txt", argv[2]); text(p, 50);
         sprintf(p, "%s/sub/deeper", argv[2]); mkdir(p, 0755);
         sprintf(p, "%s/sub/deeper/c.txt", argv[2]); text(p, 5);
+        sprintf(p, "%s/README", argv[2]); text(p, 3);       /* no type: NOTES N6 */
+        sprintf(p, "%s/.profile", argv[2]); text(p, 2);     /* no name part */
     } else {
         sprintf(p, "%s/bin.dat", argv[2]);
         if (!(f = fopen(p, "r+b"))) { perror(p); return 2; }

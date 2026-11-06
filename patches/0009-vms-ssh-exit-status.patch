@@ -1,0 +1,19 @@
+Subject: read VSI ssh's exit status as success on VMS
+
+VSI's ssh client exits with a VMS status; waitpid() keeps its low byte,
+27 when the remote command ended 0, so every transfer over ssh ended with
+rsync reporting the child's failure. vms_child_status() maps it.
+
+--- a/main.c	2026-11-06 14:45:32.460750538 +0000
++++ b/main.c	2026-11-06 14:45:32.480109969 +0000
+@@ -1401,6 +1401,10 @@
+ 
+ 	if (waitpid(child, &st, 0) == -1)
+ 		err(ERR_WAITPID, "waitpid");
++#ifdef __VMS
++	/* VSI ssh's VMS exit status, as rsync should read it (vms_spawn.c). */
++	st = vms_child_status(st, args);
++#endif
+ 
+ 	/*
+ 	 * If the child exited abnormally then use its exit status as our exit

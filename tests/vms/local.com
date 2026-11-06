@@ -64,6 +64,9 @@ $ endsubroutine
 $!
 $wipe: subroutine
 $ set noon
+$! "*.*" does not match a name with no name part (".profile"): ".*" does
+$ set security/protection=o:rwed [.lt...].*;*
+$ delete/nolog [.lt...].*;*
 $ set security/protection=o:rwed [.lt...]*.*;*
 $ delete/nolog [.lt.src.sub.deeper]*.*;*, [.lt.dst.sub.deeper]*.*;*
 $ delete/nolog [.lt.src.sub]*.*;*, [.lt.dst.sub]*.*;*

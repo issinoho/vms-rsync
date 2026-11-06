@@ -34,6 +34,9 @@ static void tr(const char *fn, const char *p, long rc)
                        rc < 0 ? " " : "", rc < 0 ? strerror(errno) : "");
 }
 
+/* Files opened for writing (see vms_close()). */
+#define MAXW 64
+static struct { int fd; char *path; int have; struct timespec ts[2]; char *copy_to; } wf[MAXW];
 static void track_write(int, const char *);
 static void track_rename(const char *, const char *);
 static void track_times(const char *, const struct timespec [2]);
@@ -150,12 +153,61 @@ int unlinkat(int dfd, const char *name, int flag)
     return (flag & AT_REMOVEDIR) ? rmdir(p) : unlink(p);
 }
 
+/* Copy a file's bytes from one name to another (the target a new file or a
+   new version), keeping the source's protection; then delete the source. */
+static int copy_then_delete(const char *from, const char *to)
+{
+    static char buf[32768];
+    struct stat st;
+    long n;
+    int in, out, rc = 0;
+    if (stat(from, &st) == -1) return -1;
+    if ((in = open(from, O_RDONLY)) == -1) return -1;
+    if ((out = open(to, O_WRONLY | O_CREAT | O_TRUNC, st.st_mode & 07777)) == -1) { close(in); return -1; }
+    while ((n = read(in, buf, sizeof buf)) > 0)
+        if (write(out, buf, (size_t) n) != n) { rc = -1; break; }
+    if (n < 0) rc = -1;
+    close(in);
+    if (close(out) == -1) rc = -1;
+    if (rc == 0) rc = unlink(from);
+    return rc;
+}
+
+/* rename() on VMS fills a field missing from the new name from the old one
+   (RMS defaults, NOTES N6): "README" from ".README.XXXXXX" would become
+   "README.XXXXXX", and ".hidden" from "..hidden.XXXXXX" "..hidden.hidden".
+   A name without a type gets an explicit empty one ("README."); a name with
+   no name part (".hidden") cannot be said so that the old name is not used,
+   so the file is copied there instead. */
 int renameat(int fdfd, const char *from, int tdfd, const char *to)
 {
-    char b1[PATH_MAX], b2[PATH_MAX];
-    const char *p1 = join(fdfd, from, b1, sizeof b1), *p2 = join(tdfd, to, b2, sizeof b2);
-    int rc = p1 && p2 ? rename(p1, p2) : -1;
-    tr("rename", p2, rc);
+    char b1[PATH_MAX], b2[PATH_MAX], b3[PATH_MAX];
+    const char *p1 = join(fdfd, from, b1, sizeof b1), *p2 = join(tdfd, to, b2, sizeof b2), *base;
+    int rc;
+    if (!p1 || !p2) return -1;
+    base = strrchr(p2, '/');
+    base = base ? base + 1 : p2;
+    if (base[0] == '.' && base[1] != '\0' && strcmp(base, "..") && strchr(base + 1, '.') == NULL) {
+        /* openrsync renames its temporary file before it closes it, and an
+           open file cannot be deleted (or reliably copied): if it is open
+           here, the copy is done by vms_close(). */
+        int i;
+        for (i = 0; i < MAXW; i++)
+            if (wf[i].path && !strcmp(wf[i].path, p1)) {
+                free(wf[i].copy_to);
+                if ((wf[i].copy_to = strdup(p2)) == NULL) { errno = ENOMEM; return -1; }
+                tr("rename by copy, at close", p2, 0);
+                return 0;
+            }
+        rc = copy_then_delete(p1, p2);
+        tr("rename by copy", p2, rc);
+    } else {
+        if (base[0] != '\0' && strchr(base, '.') == NULL && strlen(p2) + 2 <= sizeof b3) {
+            sprintf(b3, "%s.", p2);
+            rc = rename(p1, b3);
+        } else rc = rename(p1, p2);
+        tr("rename", p2, rc);
+    }
     if (rc == 0) track_rename(p1, p2);
     return rc;
 }
@@ -241,8 +293,6 @@ int utimensat(int dfd, const char *name, const struct timespec ts[2], int flag)
    (NOTES N5). So every file opened for writing is tracked by fd with its
    current name (renames followed); the times last set on that name are set
    again by vms_close() after the real close. */
-#define MAXW 64
-static struct { int fd; char *path; int have; struct timespec ts[2]; } wf[MAXW];
 
 static void track_write(int fd, const char *p)
 {
@@ -251,7 +301,7 @@ static void track_write(int fd, const char *p)
         if (wf[i].path && wf[i].fd == fd) { free(wf[i].path); wf[i].path = NULL; }
     for (i = 0; i < MAXW; i++)
         if (!wf[i].path) {
-            if ((wf[i].path = strdup(p)) != NULL) { wf[i].fd = fd; wf[i].have = 0; }
+            if ((wf[i].path = strdup(p)) != NULL) { wf[i].fd = fd; wf[i].have = 0; wf[i].copy_to = NULL; }
             return;
         }
 }
@@ -329,12 +379,21 @@ int vms_close(int fd)
     }
     for (i = 0; i < MAXW; i++)
         if (wf[i].path && wf[i].fd == fd) {
+            const char *now = wf[i].path;
+            if (wf[i].copy_to) {                   /* a rename to ".name" */
+                int r = copy_then_delete(wf[i].path, wf[i].copy_to);
+                tr("close: copied to", wf[i].copy_to, r);
+                if (r == -1) { rc = -1; e = errno; }
+                now = wf[i].copy_to;
+            }
             if (wf[i].have) {
                 if (trace > 0) fprintf(stderr, "vms_at: close(%d) sets the times again\n", fd);
-                settimes(wf[i].path, wf[i].ts);
+                settimes(now, wf[i].ts);
             }
             free(wf[i].path);
+            free(wf[i].copy_to);
             wf[i].path = NULL;
+            wf[i].copy_to = NULL;
         }
     forget(fd);
     errno = e;

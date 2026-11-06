@@ -121,5 +121,6 @@ int tcsetattr(int, int, const struct termios *);
 
 /* The child process for the remote shell or a local --server (patch 0002). */
 int vms_spawn(char *const *, int, const char *);
+int vms_child_status(int, char *const *);
 
 #endif

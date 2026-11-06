@@ -6,3 +6,4 @@
 0006-iov-base-cast.patch
 0007-fmap-read-fallback.patch
 0008-daemon-push-error.patch
+0009-vms-ssh-exit-status.patch

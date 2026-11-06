@@ -62,6 +62,19 @@ static const char *resolve(const char *name, const char *self_name, char *out, s
     return name;                    /* a VMS image spec or path given with -e */
 }
 
+/* The child's wait status as rsync should read it. VSI's ssh client exits
+   with a VMS status, of which waitpid() keeps the low byte: 27 (%X0764D01B)
+   when the remote command ended 0 (NOTES N6). That is success. */
+int vms_child_status(int st, char *const *args)
+{
+    const char *base = strrchr(args[0], '/');
+    base = base ? base + 1 : args[0];
+    if ((st & 0xff) == 0 && ((st >> 8) & 0xff) == 27 &&
+        (!strcmp(base, "ssh") || strstr(args[0], "SSH$SSH") || strstr(args[0], "ssh$ssh")))
+        return 0;
+    return st;
+}
+
 /* Start args[] with sock as its stdin and stdout. Returns the pid, or -1. */
 int vms_spawn(char *const *args, int sock, const char *self_name)
 {
@@ -82,6 +95,10 @@ int vms_spawn(char *const *args, int sock, const char *self_name)
         for (fd = 3; fd < 256; fd++)
             if (fd != sock && fd != errfd) (void) fcntl(fd, F_SETFD, FD_CLOEXEC);
     }
+    /* openrsync makes both ends non-blocking; VSI's ssh client crashes
+       (ACCVIO) writing a stream of data to a non-blocking stdout (NOTES N6).
+       The parent never uses this end, so give the child a blocking one. */
+    (void) fcntl(sock, F_SETFL, fcntl(sock, F_GETFL, 0) & ~O_NONBLOCK);
     pid = vfork();
     if (pid == 0) {
         decc$set_child_standard_streams(sock, sock, errfd);
