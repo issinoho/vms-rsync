@@ -219,6 +219,7 @@ None of them is a blocker on what is known now. Each gets a probe in Phase 0.
   (vms-grep 0267a37). Installed on both nodes from the kits, with RSYNC$STARTUP in
   SYSTARTUP_VMS and RSYNC$SETUP in SYLOGIN (vms-site-config); a batch login
   defines and runs rsync on both.
+  - Exit: signed off by the user, 2026-11-06.
 
 **Later:** VMS as server: `rsync --server` under VSI sshd if probe 9 passes; otherwise
 a daemon as an auxiliary server, with `@RSYNCD:` greeting and modules.
