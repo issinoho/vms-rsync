@@ -56,4 +56,30 @@ awk '/^OBJS/{on=1} on{print; if ($0 !~ /\\$/) exit}' "$stage/Makefile" | grep -o
     sed 's/\.o$//' > "$stage/vms/sources.txt"
 echo main >> "$stage/vms/sources.txt"
 step "$(wc -l < "$stage/vms/sources.txt") sources"
+step "version and PCSI kit inputs"
+: "${KIT_PRODUCER:=ISSINOHO}"
+kitversion="$UPSTREAM_NAME-$(echo "$UPSTREAM_DATE" | tr -d -)-vms$VMS_PATCH_LEVEL"
+printf '#define VMS_KIT_VERSION "%s"\n#define VMS_PCSI_VERSION "%s"\n' "$kitversion" "$PCSI_VERSION" \
+    > "$stage/vms/vms_version.h"
+kit=$stage/vms/kit
+subst() {
+    sed -e "s/@PRODUCER@/$KIT_PRODUCER/g" -e "s/@BASE@/$1/g" -e "s/@PCSIVERSION@/$PCSI_VERSION/g" \
+        -e "s/@KITVERSION@/$kitversion/g" -e "s/@UPSTREAMDATE@/$UPSTREAM_DATE/g" -e "s/@ARCH@/$2/g"
+}
+for base in I64VMS X86VMS; do
+    subst $base "" < "$kit/rsync.pcsi\$desc_template" > "$kit/RSYNC-$base.PCSI\$DESC"
+    subst $base "" < "$kit/rsync.pcsi\$text_template" > "$kit/RSYNC-$base.PCSI\$TEXT"
+done
+rm -f "$kit/rsync.pcsi\$desc_template" "$kit/rsync.pcsi\$text_template"
+mv "$kit/rsync\$startup.com" "$kit/RSYNC\$STARTUP.COM"
+mv "$kit/rsync\$setup.com" "$kit/RSYNC\$SETUP.COM"
+mv "$kit/make_kit.com" "$kit/MAKE_KIT.COM"
+subst "" "IA64 and x86-64" < "$kit/readme.vms" > "$kit/README.VMS"; rm -f "$kit/readme.vms"
+mkdir -p "$kit/doc"
+cp "$stage/LICENSE.md" "$kit/doc/LICENSE."
+# the manual, from openrsync's mdoc page, as plain text
+groff -mandoc -Tascii -P-c -P-b -P-u "$stage/openrsync.1" 2>/dev/null > "$kit/doc/RSYNC.TXT"
+[ -s "$kit/doc/RSYNC.TXT" ] || die "could not render openrsync.1"
+printf 'KIT_PRODUCER=%s\nPCSI_VERSION=%s\nKIT_VERSION=%s\n' "$KIT_PRODUCER" "$PCSI_VERSION" \
+    "$kitversion" > "$kit/kit.env"
 step "staged $stage"

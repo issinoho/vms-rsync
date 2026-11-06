@@ -1,0 +1,31 @@
+--
+-- PCSI product description for rsync on OpenVMS.
+-- Template: tools/prepare.sh substitutes @PRODUCER@, @BASE@ and @PCSIVERSION@.
+--
+product @PRODUCER@ @BASE@ RSYNC @PCSIVERSION@ full ;
+
+    -- No prerequisites: zlib is linked in. "-e ssh" runs VSI's OpenSSH client
+    -- (SSH$ROOT) when it is installed; rsync:// and local copies need nothing.
+
+    information RELEASE_NOTES phase after ;
+
+    directory [RSYNC] ;
+    directory [RSYNC.BIN] ;
+    directory [RSYNC.DOC] ;
+
+    file [RSYNC.BIN]RSYNC.EXE ;
+    file [SYS$STARTUP]RSYNC$STARTUP.COM ;
+    file [RSYNC]RSYNC$SETUP.COM ;
+    file [RSYNC.DOC]README.VMS ;
+    file [RSYNC.DOC]LICENSE. ;
+    file [RSYNC.DOC]RSYNC.TXT ;
+
+    -- Define RSYNC$ROOT now and print the post-installation tasks (PCSI shows
+    -- only the title of an information message unless /HELP is given).
+    execute postinstall "@PCSI$DESTINATION:[SYS$STARTUP]RSYNC$STARTUP.COM INSTALL" interactive ;
+    -- On removal, deassign RSYNC$ROOT.
+    execute install "CONTINUE" remove "@PCSI$DESTINATION:[SYS$STARTUP]RSYNC$STARTUP.COM REMOVE" ;
+
+    information POST_INSTALL phase after ;
+
+end product ;

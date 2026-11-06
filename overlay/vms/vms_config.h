@@ -126,6 +126,7 @@ void vms_operands(int, char **);
 extern int vms_soft_errors;
 /* exit() with error severity under DCL (vms/vms_exit.c); vms_server set in
    main for a --server child, which keeps the POSIX exit its parent decodes */
+#include "vms/vms_version.h"
 void vms_exit(int);
 #define exit vms_exit
 extern int vms_server;

@@ -23,8 +23,8 @@ echo "push: $(echo "$changed" | grep -c . || true) changed of $(wc -l < "$now") 
 batch=$top/cache/push-$node.batch
 {
     echo "cd $SFTPDIR"
-    (cd "$top/staging" && find "$UPSTREAM_NAME" "$UPSTREAM_NAME/vms" -maxdepth 0 -type d; \
-     cd "$top/staging" && find "$UPSTREAM_NAME/regress" -type d 2>/dev/null) | sed 's/^/-mkdir /'
+    (cd "$top/staging" && find "$UPSTREAM_NAME" -maxdepth 0 -type d; \
+     cd "$top/staging" && find "$UPSTREAM_NAME/vms" "$UPSTREAM_NAME/regress" -type d 2>/dev/null) | sed 's/^/-mkdir /'
     for f in $changed; do echo "put $top/staging/$f $f"; done
 } > "$batch"
 sftp -P "$PORT" -i "${VMS_SSH_KEY:-$HOME/.ssh/vms_ed25519}" -o BatchMode=yes -b "$batch" "$USER@$HOST" \

@@ -1,0 +1,20 @@
+Subject: --version names the VMS kit
+
+openrsync prints only its protocol version. On VMS it also prints the kit
+version and where the port lives (vms/vms_version.h, written by
+tools/prepare.sh from upstream.conf), so a report says which build it was.
+
+--- a/main.c
++++ b/main.c
+@@ -904,6 +904,11 @@
+ 		case 'V':
+ 			fprintf(stderr, "openrsync: protocol version %u\n",
+ 			    RSYNC_PROTOCOL);
++#ifdef __VMS
++			fprintf(stderr, "rsync for OpenVMS %s (PCSI %s), "
++			    "https://github.com/issinoho/vms-rsync\n",
++			    VMS_KIT_VERSION, VMS_PCSI_VERSION);
++#endif
+ 			exit(0);
+ 		case 'W':
+ 			*whole_file = 1;

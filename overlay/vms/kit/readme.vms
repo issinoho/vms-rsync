@@ -1,0 +1,127 @@
+rsync for OpenVMS
+=================
+
+This is rsync for OpenVMS @ARCH@, built natively from openrsync (the
+ISC-licensed rsync of OpenBSD and macOS), commit of @UPSTREAMDATE@, plus the
+patches and VMS layer in the vms-rsync project:
+
+    https://github.com/issinoho/vms-rsync
+
+Kit version: @KITVERSION@ (PCSI @PCSIVERSION@).  This is an early test
+kit.  openrsync is free software under the ISC licence; see LICENSE.  The
+manual is RSYNC.TXT; the notes below say where VMS differs.
+
+What is installed
+-----------------
+    RSYNC$ROOT:[BIN]RSYNC.EXE             rsync
+    RSYNC$ROOT:[000000]RSYNC$SETUP.COM    defines the rsync command
+    RSYNC$ROOT:[DOC]                      this file, LICENSE, RSYNC.TXT
+    SYS$STARTUP:RSYNC$STARTUP.COM         defines RSYNC$ROOT
+
+zlib (-z) is linked in; nothing else is needed.  "-e ssh" uses VSI's
+OpenSSH client (SSH$ROOT) when that is installed.
+
+Setting up
+----------
+The kit installs RSYNC$STARTUP.COM into SYS$STARTUP and runs it once.  To
+define RSYNC$ROOT at every boot, the system manager adds this line to
+SYS$MANAGER:SYSTARTUP_VMS.COM:
+
+    $ @SYS$STARTUP:RSYNC$STARTUP.COM
+
+Each user (or SYLOGIN.COM, for everyone) then defines the command:
+
+    $ @RSYNC$ROOT:[000000]RSYNC$SETUP.COM
+
+What works
+----------
+rsync on VMS is a client: it copies to and from another system's rsync, and
+from one VMS directory to another.
+
+    $ rsync -av [.WWW] user@linuxhost:/srv/www/          push over ssh
+    $ rsync -av user@linuxhost:/srv/www/ [.WWW]          pull over ssh
+    $ rsync -av rsync://linuxhost/module/ [.MIRROR]      pull from a daemon
+    $ rsync -av [.SRC] [.BACKUP]                         local copy
+
+Tested against rsync 3.4.1 on Linux, with -a, -v, -n, -c, -z, --delete,
+--partial, --progress, --link-dest and --keep-versions.  From an rsync://
+daemon rsync can pull only: openrsync cannot push to a daemon or log in to
+one.  VMS cannot yet be the remote end (rsync --server under VSI's sshd).
+
+Arguments may be VMS specifications ([.DIR], DEV:[DIR], a logical name) or
+paths (dir/sub/).  A directory given as a VMS specification means its
+contents, as "dir/" does.
+
+Text files
+----------
+A file of variable-length (or VFC) records with carriage control is sent as
+its lines, each ending in LF, the way other systems store text.  Other files
+(stream, fixed-length, undefined, and record files without carriage
+control) are sent byte for byte.
+
+A received file whose type is a text type is written as variable-length
+records, so it reads as a normal VMS text file; anything else is written as
+a Stream_LF file, exactly as sent.  The text types are those of VFTP:
+
+    .TXT .C .H .CC .CPP .HPP .COM .MMS .MAR .FOR .F .F90 .PAS .BAS .COB .PL
+    .PY .SH .HTML .HTM .CSS .JS .JSON .XML .YAML .YML .MD .RST .CSV .TSV .INI
+    .CONF .CFG .LOG .LIS .MAP .OPT .SQL .DIFF .PATCH .MAK .AWK .SED .TEX
+    .LIST .README .PEM .PUB
+
+and a list of your own (separated by spaces or commas) replaces it:
+
+    $ define RSYNC$TEXT_TYPES ".TXT,.COM,.LOG"
+
+A text-type file that would not read back the same as records (one that
+does not end with a newline, or has a line over 32,767 bytes) stays a
+Stream_LF file.
+
+Versions
+--------
+rsync never replaces a file in place: an updated file arrives as a new
+version, and the older versions stay.  --keep-versions=N keeps only the
+newest N versions of each file it updates:
+
+    $ rsync -av "--keep-versions=3" user@linuxhost:/srv/www/ [.WWW]
+
+--delete removes every version of a file the source no longer has; use -n
+first to see what it would delete.
+
+Names
+-----
+An ODS-5 disk keeps names as they are, including case.  Two names that
+differ only in case (README.txt and Readme.TXT) are one file on VMS: the
+first is written, the second is left out with a message, the rest of the
+transfer goes on, and the exit status is 23.
+
+Attributes
+----------
+-t sets the revision date; -p sets the protection from the mode bits (640
+is S:RWD,O:RWD,G:R,W:).  Symbolic links are copied as links (-l).  Files
+belong to the user running rsync: -o and -g, which -a includes, are
+ignored.  -H is refused (VMS would make copies, not links).  Devices and
+fifos are left out with a message.
+
+Upper-case options and batch jobs
+---------------------------------
+Under the TRADITIONAL DCL parse style DCL upper-cases the unquoted parts of
+a command and the C run-time library passes them to rsync in lower case,
+so an unquoted -P arrives as -p.  Batch jobs use TRADITIONAL even when
+interactive logins are set to EXTENDED.  Quote the options that use
+capital letters ("-P"), or start the procedure with
+
+    $ SET PROCESS/PARSE_STYLE=EXTENDED
+
+Exit status
+-----------
+Under DCL a failed run exits with an error-severity status, so ON ERROR and
+IF .NOT. $STATUS work; rsync's exit code N (23 partial transfer, 12 protocol
+error, 30 timeout, ...) is ($STATUS .AND. %X7F8) / 8.  Under a GNV shell, $?
+is the exit code as on Unix.
+
+Tracing
+-------
+    $ define RSYNC_VMS_TRACE 1
+
+makes the VMS layer report each file operation on SYS$ERROR, for reports
+of problems (https://github.com/issinoho/vms-rsync/issues).
