@@ -106,7 +106,7 @@ ok = len(case) == 1
 print("CHECK %-58s %s (%d files: %s)" % ("case: Readme.TXT and README.txt, one written", "ok" if ok else "FAILED", len(case), ", ".join(case)))
 if not ok: fails += 1
 st13 = [l.split()[-1] for l in open(out, errors="replace") if l.startswith("NET: S13 status")]
-ok = st13 == ["%X0035A0B9"]
+ok = st13 == ["%X1035A0BA"]
 print("CHECK %-58s %s (%s)" % ("case: the transfer goes on, status 23 (partial)", "ok" if ok else "FAILED", st13))
 if not ok: fails += 1
 # attributes (D6)
@@ -136,7 +136,7 @@ for line in open(out, errors="replace"):
     if line.startswith("NETPRO "): print("   ", line.strip())
 check("attributes: Linux push3/ = Linux lattr/ (back again)", lattrs(d + "/push3"), la, "push3", "lattr")
 st = {l.split()[1]: l.split()[-1] for l in open(out, errors="replace") if l.startswith("NET: S1") and " status " in l}
-ok = st.get("S14") == "%X0035A0B9"
+ok = st.get("S14") == "%X1035A0BA"
 print("CHECK %-58s %s (%s)" % ("attributes: the fifo left out, status 23", "ok" if ok else "FAILED", st.get("S14")))
 if not ok: fails += 1
 # a symlink's own date and mode: skipped, not an error (and not the target's)

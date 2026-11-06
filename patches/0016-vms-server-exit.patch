@@ -1,0 +1,30 @@
+Subject: exit status on VMS: main ends through exit(), and a --server child keeps its POSIX status
+
+vms/vms_exit.c gives every non-zero exit error severity under DCL (built
+/MAIN=POSIX_EXIT, only exit 1 had it). A return from main bypasses it, so
+main's last line, the end of every ssh and local transfer, calls exit(). The
+child of a local copy is waited for by rsync itself, which decodes a POSIX
+status, so it keeps that form.
+
+--- a/main.c
++++ b/main.c
+@@ -1244,6 +1244,8 @@
+ 	/* -H would give copies here, not links (vms/vms_at.c linkat): D6 */
+ 	if (opts.hard_links)
+ 		errx(ERR_SYNTAX, "-H (--hard-links) is not supported on VMS");
++	/* a --server child keeps the POSIX exit its parent decodes (vms/vms_exit.c) */
++	vms_server = opts.server;
+ #endif
+ 
+ 	if (argc < 2) {
+@@ -1453,5 +1453,10 @@
+ 		rc2 = ERR_WAITPID;
+ 
+ 	fargs_free(fargs);
++#ifdef __VMS
++	/* through exit(), for its status under DCL (vms/vms_exit.c) */
++	exit(MAX(rc, rc2));
++#else
+ 	return MAX(rc, rc2);
++#endif
+ }

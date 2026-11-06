@@ -124,6 +124,11 @@ int tcsetattr(int, int, const struct termios *);
 int vms_text_record(const struct stat *);
 void vms_operands(int, char **);
 extern int vms_soft_errors;
+/* exit() with error severity under DCL (vms/vms_exit.c); vms_server set in
+   main for a --server child, which keeps the POSIX exit its parent decodes */
+void vms_exit(int);
+#define exit vms_exit
+extern int vms_server;
 off_t vms_lf_size(const char *, const struct stat *);
 
 /* The child process for the remote shell or a local --server (patch 0002). */
