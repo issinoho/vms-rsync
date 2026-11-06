@@ -183,6 +183,7 @@ None of them is a blocker on what is known now. Each gets a probe in Phase 0.
   - Not covered: openrsync as the Linux server (only rsync 3.4.1); daemon
     authentication and rsync:// push (openrsync has neither); messages under an
     ssh command (stderr); `--progress` was run but not checked.
+  - Exit: signed off by the user, 2026-11-06.
 
 **Phase 3: VMS semantics.**
 - The file view layer (D3), new versions and `--keep-versions` (D4), VMS specs and
