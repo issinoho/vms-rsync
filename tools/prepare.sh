@@ -66,7 +66,7 @@ subst() {
     sed -e "s/@PRODUCER@/$KIT_PRODUCER/g" -e "s/@BASE@/$1/g" -e "s/@PCSIVERSION@/$PCSI_VERSION/g" \
         -e "s/@KITVERSION@/$kitversion/g" -e "s/@UPSTREAMDATE@/$UPSTREAM_DATE/g" -e "s/@ARCH@/$2/g"
 }
-for base in I64VMS X86VMS; do
+for base in I64VMS X86VMS AXPVMS; do
     subst $base "" < "$kit/rsync.pcsi\$desc_template" > "$kit/RSYNC-$base.PCSI\$DESC"
     subst $base "" < "$kit/rsync.pcsi\$text_template" > "$kit/RSYNC-$base.PCSI\$TEXT"
 done

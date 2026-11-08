@@ -16,6 +16,7 @@ $ top = f$environment("DEFAULT")
 $ arch = f$edit(f$getsyi("ARCH_NAME"), "UPCASE")
 $ base = "I64VMS"
 $ if arch .eqs. "X86_64" then base = "X86VMS"
+$ if arch .eqs. "ALPHA" then base = "AXPVMS"
 $!
 $! KIT_PRODUCER, PCSI_VERSION, KIT_VERSION from kit.env
 $ open/read env [.VMS.KIT]KIT.ENV

@@ -7,6 +7,7 @@ $ say = "write sys$output"
 $ arch = f$edit(f$getsyi("ARCH_NAME"), "UPCASE")
 $ base = "I64VMS"
 $ if arch .eqs. "X86_64" then base = "X86VMS"
+$ if arch .eqs. "ALPHA" then base = "AXPVMS"
 $ kitdir = f$environment("DEFAULT") - "]" + ".OPENRSYNC.KIT_''arch']"
 $ say "=== INSTALL from ", kitdir
 $ product install RSYNC /producer=ISSINOHO /base_system='base' /source='kitdir' /options=noconfirm /log
